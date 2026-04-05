@@ -222,7 +222,7 @@ Funded by the Estonian Research Council grant **PSG837**.
              and Formal Trojan Evaluation for RISC-V Processors},
   author  = {Imtiaz, Sharjeel and Reinsalu, Uljana and Ghasempouri, Tara},
   journal = {IEEE Access},
-  year    = {2025}
+  year    = {2026}
 }
 ```
 
@@ -244,4 +244,4 @@ MIT — see [LICENSE](LICENSE) file.
 
 ---
 
-**Version:** 1.0.0 | **Last Updated:** April 2026
+**Version:** 1.0.0 | **Last Updated:** 5 April 2026
