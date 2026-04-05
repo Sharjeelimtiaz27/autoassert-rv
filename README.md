@@ -181,15 +181,37 @@ bash jasper/run_all.sh
 
 ## Comparison with Related Work
 
-| Feature | AutoAssert-RV (Ours) | Transys | SENTAUR | TrustHub |
-|---------|---------------------|---------|---------|----------|
-| Target | RISC-V (Ibex) | AES/UART | AES/UART/RAM | Multi-IP |
-| Assertion Source | LLM-translated SVA | Manual SVA | LLM-generated | Manual |
-| Formal Tool | JasperGold FPV+SPV | N/A | N/A | N/A |
-| Trojan Benchmark | 39 (TrustHub-based) | N/A | ~17 | ~106 |
-| Novel Metrics | 4 (TAR, WTDR, AAD, AER) | None | None | None |
-| Automation | Full pipeline | Semi | Semi | Manual |
-| Open Source | Yes (MIT) | Partial | No | Partial |
+### Assertion translation and LLM-based generation
+
+| Feature | AutoAssert-RV (Ours) | Transys [1] | Chuah et al. [2] | Kande et al. [3] | SV-LLM [4] |
+|---------|---------------------|-------------|------------------|-----------------|-------------|
+| Task | Cross-arch translation | Rule-based translation | Manual assertion writing | LLM generation | Multi-agent verification |
+| Input | Validated assertions + RTL | RTL + constraints | RISC-V spec | RTL + NL comments | SoC design files |
+| Reuses validated assertions | Yes | Yes | N/A | No | No |
+| Target architecture | RISC-V Ibex | Generic | RISC-V NS31A | ISCAS benchmarks | Generic SoC |
+| Formal backend | JasperGold FPV + SPV | None | JasperGold FPV | Simulation only | Simulation only |
+| Trojan evaluation | Yes — 39 real Trojans | None | None | None | None |
+| Novel metrics | TAR, WTDR, AAD, AER | None | None | None | None |
+| Open source | Yes (MIT) | Partial | No | No | No |
+
+### Formal Trojan detection
+
+| Feature | AutoAssert-RV (Ours) | HT-PGFV [5] | QuEST [6] |
+|---------|---------------------|-------------|-----------|
+| Detection method | SVA bind files + JasperGold FPV | Auto-generated SVA + formal | Shannon entropy metrics |
+| Target | RISC-V processor modules | ISCAS / Trust-Hub | Generic IP |
+| Trojan source | TrustHub taxonomy — 39 files | Trust-Hub | Trust-Hub |
+| Trojan categories | 6 (full TrustHub set) | Mixed | Leakage focus |
+| Novel metrics | WTDR, AAD, AER | None | Entropy-based |
+| RISC-V specific | Yes | No | No |
+
+**References:**
+[1] R. Zhang and C. Sturton, "Transys," IEEE S&P, 2020.
+[2] C. S. Chuah et al., "Formal Verification of Security Properties on RISC-V Processors," MEMOCODE, 2023.
+[3] R. Kande et al., "(Security) Assertions by Large Language Models," IEEE TIFS, 2024.
+[4] D. Saha et al., "SV-LLM: An Agentic Approach for SoC Security Verification," arXiv:2506.20415, 2025.
+[5] HT-PGFV, Electronics, 2024.
+[6] J. Wu and D. Forte, "QuEST," ITC, 2025.
 
 ---
 
