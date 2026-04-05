@@ -189,7 +189,7 @@ bash jasper/run_all.sh
 | Feature | AutoAssert-RV (Ours) | Transys [1] | Chuah et al. [2] | Kande et al. [3] | AssertLLM [4] | SV-LLM [5] | Assertain [6] |
 |---------|---------------------|-------------|------------------|-----------------|--------------|------------|--------------|
 | Task | Translation | Translation | Manual writing | Generation | Generation | Generation (multi-agent) | Generation |
-| Year | 2025 | 2020 | 2023 | 2024 | 2025 | 2025 | 2025 |
+| Year | 2026 | 2020 | 2023 | 2024 | 2025 | 2025 | 2025 |
 | Input | Validated SVA + RTL | RTL + rules | RISC-V spec | RTL + NL | NL spec | SoC files | RTL + spec |
 | Reuses validated assertions | **Yes** | Yes | N/A | No | No | No | No |
 | Target | RISC-V Ibex | Generic | RISC-V NS31A | ISCAS | Generic RTL | Generic SoC | Generic RTL |
@@ -202,7 +202,7 @@ bash jasper/run_all.sh
 
 | Feature | AutoAssert-RV (Ours) | TrojanForge [7] | SENTAUR [8] | GHOST [9] | 0ena [10] | SoC-HTs [11] | Trust-Hub [12] |
 |---------|---------------------|----------------|------------|----------|----------|-------------|--------------|
-| Year | 2025 | 2024 | 2024 | 2025 | 2024 | 2023 | 2008 |
+| Year | 2026 | 2024 | 2024 | 2025 | 2024 | 2023 | 2008 |
 | Target arch | RISC-V (Ibex) | ISCAS-85 | AES/UART/RAM | AES/UART/SRAM | RISC-V (CVA6) | RISC-V (Ariane) | Multi-IP |
 | Abstraction | RTL (SV) | Gate | RTL | RTL | Layout | RTL (AXI) | Mixed |
 | Automation | Full | Full | Semi | Full | Manual | Manual | Manual |
@@ -218,7 +218,7 @@ bash jasper/run_all.sh
 
 | Feature | AutoAssert-RV (Ours) | HT-PGFV [13] | QuEST [14] |
 |---------|---------------------|-------------|-----------|
-| Year | 2025 | 2024 | 2025 |
+| Year | 2026 | 2024 | 2025 |
 | Detection method | SVA bind files + JasperGold FPV | Auto-SVA + formal | Shannon entropy |
 | Target | RISC-V processor | ISCAS / Trust-Hub | Generic IP |
 | Trojan categories | 6 — all TrustHub | Mixed | Leakage only |
@@ -272,7 +272,7 @@ Funded by the Estonian Research Council grant **PSG837**.
              and Formal Trojan Evaluation for RISC-V Processors},
   author  = {Imtiaz, Sharjeel and Reinsalu, Uljana and Ghasempouri, Tara},
   journal = {IEEE Access},
-  year    = {2025}
+  year    = {2026}
 }
 ```
 
