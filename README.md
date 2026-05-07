@@ -43,13 +43,13 @@ This repository accompanies the paper:
 ## Five-Stage Pipeline
 
 ```
-ATS → AQRS → TES → ARS → RAVS
- 12    66     39    0     39   = 156 JasperGold runs total
+AVS → AQRS → TES → ARS → RAVS
+ 10    66     39    0     39   = 154 JasperGold runs total
 ```
 
 | Stage | Full Name | Abbreviation | Tool | Runs |
 |-------|-----------|--------------|------|------|
-| 1 | Assertion Translation Stage | ATS | Claude Code CLI + QuestaSim + JasperGold FPV | 12 |
+| 1 | Assertion Validation Stage | AVS | QuestaSim + JasperGold FPV | 10 |
 | 2 | Assertion Quality Ranking Stage | AQRS | JasperGold FPV + SPV | 66 |
 | 3 | Trojan Evaluation Stage | TES | JasperGold FPV | 39 |
 | 4 | Assertion Refinement Stage | ARS | Python template script | 0 |
@@ -59,13 +59,14 @@ ATS → AQRS → TES → ARS → RAVS
 
 ## Key Features
 
-### Stage 1 — Assertion Translation Stage (ATS)
-Five sub-steps: RTL parsing (pyverilog) → signals.json → prompt builder →
-Claude Code CLI translation → QuestaSim compile validation (max 3 retries)
-→ JasperGold FPV Proven + non-vacuous gate.
+### Stage 1 — Assertion Validation Stage (AVS)
+Input: pre-translated SVA bind files from ISCAS article + SecMetric journal
+(stored in `assertions/source_sva/`).
+Validation: QuestaSim compile check → JasperGold FPV Proven + non-vacuous
+on clean Ibex RTL. COV files collected for SRTLC in Stage 2.
 
-Metric produced: **Translation Acceptance Rate (TAR)**
-`TAR = translated assertions / total NS31A assertions × 100%`
+Metric produced: **Security Assertion Translation Rate (SATR)**
+`SATR = validated assertions / total source assertions × 100%`
 
 ### Stage 2 — Assertion Quality Ranking Stage (AQRS)
 Computes five independent quality dimensions per assertion on CLEAN RTL only.
@@ -151,36 +152,31 @@ autoassert-rv/
 │   ├── parse_rtl.py             ← ATS 1A: pyverilog RTL parser
 │   ├── build_prompt.py          ← ATS 1B: prompt builder (seq/comb templates)
 │   ├── translate.py             ← ATS 1C: Claude Code CLI translation
-│   ├── validate_compile.py      ← ATS 1D: QuestaSim compile loop
-│   ├── build_wrapper.py         ← ATS 1E: bind file builder
-│   ├── validate_fpv.py          ← ATS 1F: JasperGold FPV baseline
-│   ├── refine_assertions.py     ← ARS: Python template script (Stage 4)
-│   ├── templates/
-│   │   ├── sequential_prompt.txt
-│   │   └── combinational_prompt.txt
-│   ├── signals/                 ← MODULE_signals.json (gitignored)
-│   ├── state/                   ← MODULE_state.json retry tracking
-│   └── logs/                    ← MODULE_tar_log.json TAR metric
+│   └── refine_assertions.py     ← ARS: Python template script (Stage 4 only)
+│       (translation scripts removed — advisor decision May 2026)
 ├── rtl/
-│   ├── original/                ← 8 clean Ibex RTL files
-│   └── trojaned/                ← 39 trojaned RTL files
-├── assertion_dataset/           ← Source assertions in Excel (.xlsx), 10 files, ns31a_ prefix
+│   └── ibex/                    ← processor-scoped (add rtl/cva6/ for future)
+│       ├── original/            ← full Ibex RTL (33 files)
+│       ├── trojaned_rtl/        ← integrated trojaned files per module
+│       └── generated_trojans/   ← RV-TroGen intermediate snippets
+├── assertion_dataset/           ← source assertion CSV files (NS31A + our own)
 ├── assertions/
-│   ├── translated/              ← 10 SVA bind files (ATS output)
-│   └── refined/                 ← 10 improved bind files (ARS output)
+│   ├── source_sva/              ← input: pre-translated SVA from ISCAS + SecMetric
+│   ├── translated/              ← output: 10 verified bind files (AVS output)
+│   └── refined/                 ← 10 improved bind files (ARS output, Stage 4)
 ├── jasper/
-│   ├── fpv_run.tcl              ← ATS + TES + RAVS FPV template
+│   ├── fpv_run.tcl              ← AVS + TES + RAVS FPV template
 │   ├── fpv_aer.tcl              ← AQRS AER FPV oracle template
 │   ├── fpv_tcfc.tcl             ← AQRS TCFC category oracle template
 │   ├── spv_sapc.tcl             ← AQRS SAPC SPV template (novel)
-│   ├── run_ats.sh               ← Run Stage 1 baseline (12 runs)
+│   ├── run_avs.sh               ← Run Stage 1 baseline (10 runs)
 │   ├── run_aqrs.sh              ← Run Stage 2 AQRS (66 runs)
 │   ├── run_tes.sh               ← Run Stage 3 TES (39 runs)
 │   ├── run_ravs.sh              ← Run Stage 5 RAVS (39 runs)
 │   ├── oracles/                 ← 10 AER oracle modules (FPV)
 │   └── tcfc_oracles/            ← 42 TCFC category oracle modules (FPV)
 ├── metrics/
-│   ├── compute_tar.py           ← TAR and SAR from ATS logs
+│   ├── compute_satr.py          ← SATR from AVS validation logs
 │   ├── compute_srtlc.py         ← SRTLC from AQRS COV files
 │   ├── compute_aer.py           ← AER from AQRS oracle results
 │   ├── compute_sapc.py          ← SAPC from AQRS SPV results
