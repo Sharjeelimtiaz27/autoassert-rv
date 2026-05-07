@@ -1,7 +1,5 @@
 .claude/
 CLAUDE.md
-jasper/results/
-metrics/outputs/
 pipeline/signals/
 **/__pycache__/
 *.log
