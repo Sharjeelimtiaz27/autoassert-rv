@@ -164,7 +164,7 @@ autoassert-rv/
 ├── rtl/
 │   ├── original/                ← 8 clean Ibex RTL files
 │   └── trojaned/                ← 39 trojaned RTL files
-├── ns31a_assertions/            ← Source assertions from NS31A (10 files)
+├── assertion_dataset/           ← Source assertions (NS31A + our own, 10 files)
 ├── assertions/
 │   ├── translated/              ← 10 SVA bind files (ATS output)
 │   └── refined/                 ← 10 improved bind files (ARS output)
