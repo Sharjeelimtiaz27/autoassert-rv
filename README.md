@@ -1,6 +1,6 @@
 # AutoAssert-RV
 
-**Automated Security Assertion Translation and Formal Hardware Trojan Evaluation for RISC-V Processors**
+**Formal Security Assertion Quality Ranking and Hardware Trojan Evaluation for RISC-V Processors**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -13,26 +13,28 @@
 
 ## Overview
 
-**AutoAssert-RV** is a five-stage automated pipeline for security assertion
-translation, formal quality ranking, and hardware Trojan evaluation for
-RISC-V processors.
+**AutoAssert-RV** is a five-stage formal pipeline that ranks the security
+quality of SVA assertions for RISC-V processors, validates them against
+a hardware Trojan benchmark, and refines them using formal gap findings.
 
-- **Translate assertions automatically (ATS)** — Map expert security
-  properties from NS31A (reference processor) to Ibex (target processor)
-  using Claude Code CLI with QuestaSim compile validation
+- **Validate pre-translated assertions (AVS)** — QuestaSim compile check +
+  JasperGold FPV (Proven + non-vacuous) on clean Ibex RTL. Input: SVA bind
+  files from ISCAS article + SecMetric journal. No automated translation.
 - **Rank assertion quality formally (AQRS)** — Compute the Assertion Quality
-  Score (AQS) for each translated assertion using five independent dimensions:
-  SRTLC, AER, SAPC, TCFC, and CWE/CVSS severity
+  Score (AQS) for each assertion using five independent dimensions:
+  SRTLC, AER, SAPC, TCFC, and CWE/CVSS severity. Produces gap_report.json.
 - **Evaluate against Trojans (TES)** — Run JasperGold FPV against 39
-  independent RV-Trojan files across 6 TrustHub attack categories
-- **Refine assertions automatically (ARS)** — Python template script generates
-  new assertions from AQS gap report without LLM involvement
-- **Validate improvement (RAVS)** — Re-test improved assertions against the
-  same 39 Trojans and compare detection results
+  RV-Trojan benchmark files across 6 TrustHub attack categories.
+  Validates the AQRS ranker: high-AQS assertions should detect more Trojans.
+- **Refine assertions (ARS)** — Python template script generates new assertions
+  from gap_report.json (AER gaps, SAPC blind spots, TCFC missing categories).
+  No LLM involvement. New assertions added to bind files; originals unchanged.
+- **Validate improvement (RAVS)** — Same 39 Trojans re-tested against improved
+  bind files. TDER, WTDR, AAD improvement reported vs Stage 3 (TES).
 
 This repository accompanies the paper:
-> **"AutoAssert-RV: Automated Security Assertion Translation and Formal Trojan
-> Evaluation for RISC-V Processors"**
+> **"AutoAssert-RV: Formal Security Assertion Quality Ranking and
+> Trojan Evaluation for RISC-V Processors"** *(title draft — pending advisor)*
 > S. Imtiaz, U. Reinsalu, T. Ghasempouri
 > Tallinn University of Technology — Grant PSG837
 > Target: IEEE Transactions on Very Large Scale Integration (TVLSI)
@@ -146,30 +148,26 @@ separate SVA bind files and one shared AER oracle.
 
 ```
 autoassert-rv/
-├── CLAUDE.md                    ← Claude Code reads this every session
+├── CLAUDE.md                    ← Claude Code reads this every session (gitignored)
 ├── pipeline/
-│   ├── run_step1.py             ← ATS master orchestrator
-│   ├── parse_rtl.py             ← ATS 1A: pyverilog RTL parser
-│   ├── build_prompt.py          ← ATS 1B: prompt builder (seq/comb templates)
-│   ├── translate.py             ← ATS 1C: Claude Code CLI translation
-│   └── refine_assertions.py     ← ARS: Python template script (Stage 4 only)
-│       (translation scripts removed — advisor decision May 2026)
+│   └── refine_assertions.py     ← Stage 4 ARS: Python template script only
+│                                   (no translation scripts — advisor decision May 2026)
 ├── rtl/
 │   └── ibex/                    ← processor-scoped (add rtl/cva6/ for future)
-│       ├── original/            ← full Ibex RTL (33 files)
-│       ├── trojaned_rtl/        ← integrated trojaned files per module
-│       └── generated_trojans/   ← RV-TroGen intermediate snippets
+│       ├── original/            ← full Ibex RTL (33 files — parse 9 security modules)
+│       ├── trojaned_rtl/        ← integrated trojaned files per module per category
+│       └── generated_trojans/   ← RV-TroGen intermediate snippets (provenance)
 ├── assertion_dataset/           ← source assertion CSV files (NS31A + our own)
 ├── assertions/
 │   ├── source_sva/              ← input: pre-translated SVA from ISCAS + SecMetric
-│   ├── translated/              ← output: 10 verified bind files (AVS output)
-│   └── refined/                 ← 10 improved bind files (ARS output, Stage 4)
+│   ├── translated/              ← 10 verified bind files (AVS output — Stage 1)
+│   └── refined/                 ← 10 improved bind files (ARS output — Stage 4)
 ├── jasper/
 │   ├── fpv_run.tcl              ← AVS + TES + RAVS FPV template
 │   ├── fpv_aer.tcl              ← AQRS AER FPV oracle template
 │   ├── fpv_tcfc.tcl             ← AQRS TCFC category oracle template
 │   ├── spv_sapc.tcl             ← AQRS SAPC SPV template (novel)
-│   ├── run_avs.sh               ← Run Stage 1 baseline (10 runs)
+│   ├── run_avs.sh               ← Run Stage 1 AVS (10 runs)
 │   ├── run_aqrs.sh              ← Run Stage 2 AQRS (66 runs)
 │   ├── run_tes.sh               ← Run Stage 3 TES (39 runs)
 │   ├── run_ravs.sh              ← Run Stage 5 RAVS (39 runs)
@@ -177,35 +175,33 @@ autoassert-rv/
 │   └── tcfc_oracles/            ← 42 TCFC category oracle modules (FPV)
 ├── metrics/
 │   ├── compute_satr.py          ← SATR from AVS validation logs
-│   ├── compute_srtlc.py         ← SRTLC from AQRS COV files
+│   ├── compute_srtlc.py         ← SRTLC from Stage 1 COV files
 │   ├── compute_aer.py           ← AER from AQRS oracle results
-│   ├── compute_sapc.py          ← SAPC from AQRS SPV results
+│   ├── compute_sapc.py          ← SAPC from AQRS SPV results (novel)
 │   ├── compute_tcfc.py          ← TCFC from AQRS category results
 │   ├── compute_aqs.py           ← AQS composite score
 │   ├── compute_wtdr_aad.py      ← WTDR and AAD from TES/RAVS
 │   ├── build_detection_matrix.py
 │   └── plot_aqs_validation.py   ← AQS vs detection scatter plot
-├── errors/
-│   └── archive/                 ← All error logs (never deleted)
 └── results/
-    ├── ats/                     ← ATS FPV baseline results
-    ├── aqrs/                    ← AQRS metric results + gap_report.json
-    ├── tes/                     ← TES detection matrix
-    ├── ravs/                    ← RAVS improved detection matrix
-    └── metrics/                 ← Final computed metric tables
+    ├── step1/                   ← Stage 1 AVS: JasperGold FPV + COV files (10 runs)
+    ├── step2/                   ← Stage 2 AQRS: AER + SAPC + TCFC output + gap_report.json (66 runs)
+    ├── step3/                   ← Stage 3 TES: Trojan detection matrix (39 runs)
+    ├── step4/                   ← Stage 4 ARS: gap report + new assertion candidates (Python only)
+    ├── step5/                   ← Stage 5 RAVS: improved detection matrix (39 runs)
+    └── metrics/                 ← Final computed metric tables (AQS, TDER, WTDR, AAD)
 ```
 
 ---
 
 ## Requirements
 
-- Python 3.9+ with pyverilog (`pip install pyverilog`)
-- Claude Code CLI (installed and authenticated — uses existing subscription)
-- QuestaSim (ATS compile validation — server)
-- JasperGold with FPV + SPV licences (AQRS, TES, RAVS — server)
-- Ibex RISC-V RTL (place in `rtl/original/`)
+- Python 3.9+ with pandas (`pip install pandas`)
+- QuestaSim (AVS compile validation — server)
+- JasperGold with FPV + SPV licences (AVS, AQRS, TES, RAVS — server)
+- Ibex RISC-V RTL (place in `rtl/ibex/original/`)
 
-**No GPU required. No model training. Zero extra API cost beyond Claude Code subscription.**
+**No GPU required. No model training. No API cost.**
 
 ---
 
@@ -214,28 +210,24 @@ autoassert-rv/
 ```bash
 git clone https://github.com/Sharjeelimtiaz27/autoassert-rv
 cd autoassert-rv
-pip install pyverilog
+pip install pandas
 
-# Stage 1 (ATS) — Laptop: parse and translate
-python pipeline/run_step1.py --module pmp --mode local
-git push
+# Place pre-translated SVA bind files in assertions/source_sva/
+# Place Ibex RTL in rtl/ibex/original/
 
-# Stage 1 (ATS) — Server: compile and FPV
-git pull && python pipeline/run_step1.py --module pmp --mode server
+# Stage 1 (AVS) — server: compile + JasperGold FPV on clean RTL
+bash jasper/run_avs.sh
 
-# All 9 modules
-python pipeline/run_step1.py --all-modules
-
-# Stage 2 (AQRS) — all 66 JasperGold runs
+# Stage 2 (AQRS) — server: AER + SAPC + TCFC (66 JasperGold runs)
 bash jasper/run_aqrs.sh
 
-# Stage 3 (TES) — all 39 Trojan runs
+# Stage 3 (TES) — server: 39 Trojan detection runs
 bash jasper/run_tes.sh
 
-# Stage 4 (ARS) — auto-generate improved assertions
-python pipeline/refine_assertions.py --gap-report results/aqrs/gap_report.json
+# Stage 4 (ARS) — laptop: generate improved assertions from gap report
+python pipeline/refine_assertions.py --gap-report results/step2/gap_report.json
 
-# Stage 5 (RAVS) — re-test improved assertions
+# Stage 5 (RAVS) — server: re-test improved assertions on same 39 Trojans
 bash jasper/run_ravs.sh
 
 # Compute all metrics
@@ -249,17 +241,19 @@ python metrics/plot_aqs_validation.py
 ## Laptop + Server Workflow
 
 ```bash
-# Laptop (parse + translate — no licences needed)
-python pipeline/run_step1.py --module csr --mode local
-git add pipeline/signals/ pipeline/logs/ assertions/translated/
-git commit -m "ATS local: csr translated"
+# Laptop — place input SVA files, compute Python-only metrics, run ARS
+cp your_source_sva/*.sv assertions/source_sva/
+python pipeline/refine_assertions.py --gap-report results/step2/gap_report.json
+git add assertions/ results/step4/
+git commit -m "ARS: refined assertions generated"
 git push
 
-# Server (QuestaSim + JasperGold)
+# Server — all JasperGold runs (needs QuestaSim + JasperGold licences)
 git pull
-python pipeline/run_step1.py --module csr --mode server
-git add results/ errors/
-git commit -m "ATS server: csr validated"
+bash jasper/run_avs.sh   && git add results/step1/ && git commit -m "AVS complete"
+bash jasper/run_aqrs.sh  && git add results/step2/ && git commit -m "AQRS complete"
+bash jasper/run_tes.sh   && git add results/step3/ && git commit -m "TES complete"
+bash jasper/run_ravs.sh  && git add results/step5/ && git commit -m "RAVS complete"
 git push
 ```
 
@@ -271,7 +265,7 @@ git push
 
 | Feature | AutoAssert-RV | Transys [1] | Chuah MEMOCODE [2] | Kande et al. [3] | AssertLLM [4] | TrustAssert [5] | Assertain [6] |
 |---------|--------------|-------------|-------------------|-----------------|--------------|----------------|--------------|
-| Task | Translation + ranking | Translation | Manual writing | Generation | Generation | Generation | Generation |
+| Task | Validation + quality ranking | Translation | Manual writing | Generation | Generation | Generation | Generation |
 | Year | 2025 | 2020 | 2023 | 2024 | 2025 | 2026 | 2025 |
 | Reuses expert assertions | Yes | Yes | N/A | No | No | No | No |
 | Formal backend | JasperGold FPV+SPV | None | JasperGold | Simulation | Simulation | FPV correct rate | Simulation |
@@ -344,12 +338,12 @@ Funded by the Estonian Research Council grant **PSG837**.
 ## Citation
 
 ```bibtex
-@article{imtiaz2025autoassert,
-  title   = {AutoAssert-RV: Automated Security Assertion Translation
-             and Formal Trojan Evaluation for RISC-V Processors},
+@article{imtiaz2026autoassert,
+  title   = {AutoAssert-RV: Formal Security Assertion Quality Ranking
+             and Trojan Evaluation for RISC-V Processors},
   author  = {Imtiaz, Sharjeel and Reinsalu, Uljana and Ghasempouri, Tara},
   journal = {IEEE Transactions on Very Large Scale Integration (TVLSI)},
-  year    = {2025}
+  year    = {2026}
 }
 ```
 
@@ -368,4 +362,4 @@ MIT — see [LICENSE](LICENSE) file.
 - **Email:** sharjeel.imtiaz@taltech.ee
 - **Repository:** https://github.com/Sharjeelimtiaz27/autoassert-rv
 
-**Version:** 1.2.0 | **Last Updated:** April 2026
+**Version:** 1.3.0 | **Last Updated:** May 2026
