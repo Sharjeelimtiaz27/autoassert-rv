@@ -177,6 +177,20 @@ tr.catch td{background:var(--mon-soft)}
 .stage .runs{font-family:var(--mono);font-size:.82rem;margin-top:auto;padding-top:6px;border-top:1px dashed var(--line)}
 .stage.troj{border-color:var(--gap)} .stage.done{border-color:var(--mon)}
 ol.decide{margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:8px}
+/* animations: the page is complete at rest; motion only adds emphasis */
+@keyframes flow{to{stroke-dashoffset:-28}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@keyframes alarm{0%,45%,100%{fill:var(--surface)}20%,35%{fill:var(--gap-soft)}}
+@keyframes sweep{from{transform:translateX(0)}to{transform:translateX(400px)}}
+.wire-gap{animation:flow 1.4s linear infinite}
+.flowdots{fill:none;stroke:var(--surface);stroke-width:2;stroke-dasharray:3 11;animation:flow 1.4s linear infinite}
+.ln-gap{animation:pulse 2.4s ease-in-out infinite}
+.alarm{animation:alarm 3s linear infinite}
+.cursor{stroke:var(--accent);stroke-width:2;opacity:.7;animation:sweep 4s linear infinite}
+body.still *{animation-play-state:paused!important}
+.animbtn{font:inherit;font-size:.85rem;padding:5px 12px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);cursor:pointer;align-self:flex-start}
+.stepctl{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
+.stepctl span{font-size:.92rem;color:var(--ink);flex:1 1 260px;min-width:0;background:var(--soft);border-radius:6px;padding:6px 10px}
 footer{font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);padding-top:16px;display:flex;flex-direction:column;gap:6px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -194,8 +208,9 @@ footer{font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);padd
     <span class="pill bad">Review: SAPC and AER definitions need fixing</span>
   </div>
   <nav class="toc" aria-label="Sections">
-    <a href="#story">The idea</a><a href="#words">Key words</a><a href="#srtlc">1 · SRTLC</a><a href="#aer">2 · AER</a><a href="#sapc">3 · SAPC</a><a href="#aqs">The score</a><a href="#literature">What others did</a><a href="#review">Red and blue team</a><a href="#claim">What we can claim</a><a href="#experiments">Experiments</a><a href="#decide">Decisions</a>
+    <a href="#story">The idea</a><a href="#words">Key words</a><a href="#srtlc">1 · SRTLC</a><a href="#aer">2 · AER</a><a href="#sapc">3 · SAPC</a><a href="#aqs">The score</a><a href="#ideas">New metric ideas</a><a href="#literature">What others did</a><a href="#review">Red and blue team</a><a href="#claim">Is it novel?</a><a href="#experiments">Experiments</a><a href="#steps">Experiment steps</a><a href="#decide">Decisions</a>
   </nav>
+  <button type="button" class="animbtn" id="animToggle" aria-pressed="false">Pause animations</button>
   <div class="legend" aria-label="Colour key">
     <span><i class="sw" style="background:var(--mon)"></i>watched / caught</span>
     <span><i class="sw" style="background:var(--gap)"></i>not watched / missed</span>
@@ -283,11 +298,52 @@ must never change.</pre></div>
       <div class="role t"><span class="who">The test signal</span><p>An extra input JasperGold controls freely. It can flip the <code>mstatus</code> write-enable wire on any clock cycle.</p><pre>we_seen = we_real XOR test_sig</pre></div>
     </div>
 
+    <figure>
+      <div class="diagram">
+        <svg viewBox="0 0 640 250" role="img" aria-label="The test signal is XOR-ed into the mstatus write-enable wire. Rule P watches the mstatus register; assertion A watches the CSR write instruction and the write-enable.">
+          <rect x="10" y="70" width="130" height="50" rx="5" fill="var(--surface)" stroke="var(--line)" stroke-width="1.4"/>
+          <text x="75" y="92" text-anchor="middle">CSR write logic</text><text x="75" y="108" text-anchor="middle" class="small muted">(Ibex, unchanged)</text>
+          <line x1="140" y1="95" x2="222" y2="95" stroke="var(--muted)" stroke-width="1.6"/>
+          <text x="181" y="87" text-anchor="middle" class="small muted">we_real</text>
+          <circle cx="240" cy="95" r="18" fill="var(--probe-soft)" stroke="var(--probe)" stroke-width="1.6"/>
+          <text x="240" y="100" text-anchor="middle" style="font-size:15px;fill:var(--probe)">⊕</text>
+          <rect x="190" y="180" width="100" height="36" rx="5" fill="var(--probe-soft)" stroke="var(--probe)" stroke-width="1.4"/>
+          <text x="240" y="203" text-anchor="middle" style="fill:var(--probe)">test_sig</text>
+          <line x1="240" y1="180" x2="240" y2="113" stroke="var(--probe)" stroke-width="1.8"/>
+          <text x="250" y="150" class="small" style="fill:var(--probe)">JasperGold may set 0 or 1</text>
+          <text x="250" y="163" class="small" style="fill:var(--probe)">on every clock cycle</text>
+          <line x1="258" y1="95" x2="380" y2="95" stroke="var(--muted)" stroke-width="1.6"/>
+          <text x="319" y="87" text-anchor="middle" class="small muted">we_seen</text>
+          <rect x="380" y="70" width="110" height="50" rx="5" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.4"/>
+          <text x="435" y="92" text-anchor="middle" style="fill:var(--accent)">mstatus</text><text x="435" y="108" text-anchor="middle" class="small muted">register</text>
+          <line x1="490" y1="95" x2="515" y2="95" stroke="var(--accent)" stroke-width="1.6"/>
+          <circle r="5" fill="var(--muted)"><animateMotion dur="3s" repeatCount="indefinite" path="M140,95 L222,95"/></circle>
+          <circle r="5" fill="var(--probe)"><animateMotion dur="3s" repeatCount="indefinite" path="M240,180 L240,95 L380,95"/></circle>
+          <rect class="alarm" x="515" y="70" width="118" height="50" rx="5" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.6"/>
+          <text x="574" y="91" text-anchor="middle" style="fill:var(--accent)">Rule P</text><text x="574" y="107" text-anchor="middle" class="small muted">no change in user</text>
+          <rect x="300" y="8" width="190" height="40" rx="5" fill="var(--mon-soft)" stroke="var(--mon)" stroke-width="1.4"/>
+          <text x="395" y="25" text-anchor="middle" style="fill:var(--mon)">Assertion A</text><text x="395" y="40" text-anchor="middle" class="small muted">sees CsrWriteOp + we_seen</text>
+          <path d="M140,80 C200,40 240,30 300,28" fill="none" stroke="var(--mon)" stroke-width="1.4" stroke-dasharray="4 3"/>
+          <path d="M330,95 L330,48" fill="none" stroke="var(--mon)" stroke-width="1.4" stroke-dasharray="4 3"/>
+          <text x="440" y="160" class="small">Question for JasperGold:</text>
+          <text x="440" y="176" class="small">can P break while A is silent?</text>
+          <text x="440" y="198" class="small" style="fill:var(--gap)">yes → AER = 0 (trace shown)</text>
+          <text x="440" y="214" class="small" style="fill:var(--mon)">never → AER = 1 (proven)</text>
+        </svg>
+      </div>
+      <figcaption>The test signal sits on the write-enable wire. The Ibex code itself is not changed; the XOR lives in a small wrapper around it. Dashed green lines show what assertion A looks at.</figcaption>
+    </figure>
+
     <p>JasperGold then asks one question: <b>is there any way to set the test signal so that rule P breaks while assertion A stays silent?</b></p>
 
     <div class="seg" role="group" aria-label="Choose which assertion to test">
       <button type="button" id="btnWeak" aria-pressed="true">Weak assertion (A)</button>
       <button type="button" id="btnStrong" aria-pressed="false">Stronger assertion</button>
+    </div>
+    <div class="stepctl">
+      <button type="button" class="animbtn" id="prevCyc">◀ Previous cycle</button>
+      <button type="button" class="animbtn" id="nextCyc">Next cycle ▶</button>
+      <span id="cycText" aria-live="polite">Press <b>Next cycle</b> to walk through the trace one clock cycle at a time.</span>
     </div>
 
     <div id="weakCase" class="stack">
@@ -299,6 +355,20 @@ must never change.</pre></div>
           <tr><td class="num">3</td><td>user</td><td>no</td><td>no</td><td>no</td><td class="good">OK</td><td>silent</td></tr>
         </tbody>
       </table></div>
+      <figure>
+        <div class="diagram">
+          <svg viewBox="0 0 560 190" role="img" aria-label="Waveform for the weak assertion: test signal and write-enable pulse in cycle 2, rule P breaks in cycle 2, assertion A never fires">
+            <g class="wgrid"></g>
+            <text x="4" y="40">test_sig</text><text x="4" y="72">write-enable</text><text x="4" y="104">CSR instr.</text><text x="4" y="136">rule P broken</text><text x="4" y="168">A fires</text>
+            <polyline fill="none" stroke-width="2" stroke="var(--probe)" points="130,40 230,40 230,26 330,26 330,40 530,40"/>
+            <polyline fill="none" stroke-width="2" stroke="var(--ink)" points="130,72 230,72 230,58 330,58 330,72 530,72"/>
+            <polyline fill="none" stroke-width="2" stroke="var(--muted)" points="130,104 530,104"/>
+            <polyline fill="none" stroke-width="2" stroke="var(--gap)" points="130,136 230,136 230,122 330,122 330,136 530,136"/>
+            <polyline fill="none" stroke-width="2" stroke="var(--mon)" points="130,168 530,168"/>
+            <text x="280" y="186" text-anchor="middle" class="small" style="fill:var(--gap)">A stays flat: the break goes unnoticed</text>
+          </svg>
+        </div>
+      </figure>
       <div class="callout warn"><h3>Result: counterexample, AER = 0</h3>
         <p>In cycle 2 the write-enable is flipped directly, without any CSR instruction. The "if" part of A (<code>CsrWriteOp</code>) is false, so A never checks anything, and mstatus changes in user mode unnoticed. JasperGold shows this exact trace, which tells us precisely why A is weak: <b>it watches the instruction, not the register.</b></p>
       </div>
@@ -314,6 +384,20 @@ must never change.</pre></div>
           <tr><td class="num">3</td><td>user</td><td>no</td><td>no</td><td>no</td><td class="good">OK</td><td>silent</td></tr>
         </tbody>
       </table></div>
+      <figure>
+        <div class="diagram">
+          <svg viewBox="0 0 560 190" role="img" aria-label="Waveform for the stronger assertion: the same break in cycle 2 makes the assertion fire">
+            <g class="wgrid"></g>
+            <text x="4" y="40">test_sig</text><text x="4" y="72">write-enable</text><text x="4" y="104">CSR instr.</text><text x="4" y="136">rule P broken</text><text x="4" y="168">A fires</text>
+            <polyline fill="none" stroke-width="2" stroke="var(--probe)" points="130,40 230,40 230,26 330,26 330,40 530,40"/>
+            <polyline fill="none" stroke-width="2" stroke="var(--ink)" points="130,72 230,72 230,58 330,58 330,72 530,72"/>
+            <polyline fill="none" stroke-width="2" stroke="var(--muted)" points="130,104 530,104"/>
+            <polyline fill="none" stroke-width="2" stroke="var(--gap)" points="130,136 230,136 230,122 330,122 330,136 530,136"/>
+            <polyline fill="none" stroke-width="2" stroke="var(--mon)" points="130,168 230,168 230,154 330,154 330,168 530,168"/>
+            <text x="280" y="186" text-anchor="middle" class="small" style="fill:var(--mon)">A fires in the same cycle: the break is caught</text>
+          </svg>
+        </div>
+      </figure>
       <div class="callout"><h3>Result: proven, AER = 1 (if JasperGold confirms)</h3>
         <p>Whenever the test signal breaks rule P, this assertion fires, because it watches the register itself. JasperGold checks every possible flip pattern; if no silent break exists, AER = 1.</p>
       </div>
@@ -385,6 +469,74 @@ AER = 0  if JasperGold finds one (and shows the exact trace)</div>
   </div>
 </section>
 
+<!-- NEW METRIC IDEAS -->
+<section id="ideas" class="stack">
+  <div class="eyebrow">From the research · candidates, not yet approved</div>
+  <h2>Suggested new metrics</h2>
+  <p>A research agent searched 21 topics for metrics that could strengthen the paper. It proposed six. Two are worth considering; four are not, because other papers already cover them or they repeat what we have.</p>
+
+  <div class="sheet">
+    <div class="sheet-head"><h3>C1 · Evasion Budget (EB): AER as a score, not just 0 or 1</h3><span class="chip ok">recommended</span></div>
+    <div class="sheet-body">
+      <div class="two">
+        <div class="stack">
+          <p><b>The problem it fixes:</b> with plain AER, almost every assertion gets the same answer (all 0 or all 1). Then the scores tie, and the correlation with Trojan detection has nothing to work with.</p>
+          <p><b>The idea:</b> instead of "can the test signal break the rule at all?", ask "how much tampering is needed?". JasperGold is limited step by step: first 1 bit for 1 cycle, then more bits, then more cycles. The assertion's score depends on the smallest tampering that slips past it.</p>
+          <p><b>Everyday picture:</b> a lock that opens with a paperclip is worse than one that needs a drill, even though both can be opened.</p>
+          <div class="formula">EB = 1                    if no tampering level evades A
+EB = (level − 1) / levels  otherwise (cheapest evading level)</div>
+          <p class="note"><b>Cost:</b> no extra JasperGold runs; extra cover checks inside the AER runs. <b>Novelty:</b> likely new as a per-assertion score; the "k faults" idea comes from fault-attack research (cite IACR ePrint 2024/247). <b>Fits the advisor's decision:</b> it is a better AER, not a 4th metric.</p>
+        </div>
+        <figure>
+          <div class="diagram">
+            <svg viewBox="0 0 460 250" role="img" aria-label="Tampering ladder from 1 bit for 1 cycle up to full width unbounded; the weak assertion is evaded at the first step, a medium one at step four, a strong one never">
+              <text x="10" y="16" class="small muted">tampering needed to evade (cheap → expensive)</text>
+              <g id="ladder"></g>
+            </svg>
+          </div>
+          <figcaption>Each step is a bigger tampering budget. Weak assertions break at the bottom step; strong ones survive every step.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </div>
+
+  <div class="sheet">
+    <div class="sheet-head"><h3>C3 · Privilege/Reset Context Coverage (PRCC)</h3><span class="chip prop">possible 4th metric, pilot first</span></div>
+    <div class="sheet-body">
+      <div class="two">
+        <div class="stack">
+          <p><b>The idea:</b> a RISC-V core runs in different situations: user mode, machine mode, debug mode, and just after reset. An assertion might only ever check anything in machine mode, leaving user-mode attacks unwatched. PRCC counts in how many of these situations the assertion is actually active.</p>
+          <div class="formula">PRCC = situations where A is active / situations that can occur</div>
+          <p class="note"><b>Cost:</b> about 10 cheap JasperGold runs. <b>Novelty:</b> likely new for formal checks (only simulation tools measure privilege coverage). <b>Risk:</b> if most assertions are active everywhere, every score is 1 and the metric is useless, so first try it on two modules (CSR and debug). Links to CWE-1271 (insecure reset values).</p>
+        </div>
+        <figure>
+          <div class="tbl"><table aria-label="Example PRCC grid for one assertion">
+            <thead><tr><th>Example assertion</th><th>user</th><th>machine</th><th>debug</th></tr></thead>
+            <tbody>
+              <tr><td>just after reset</td><td class="bad">not active</td><td class="good">active</td><td class="bad">not active</td></tr>
+              <tr><td>normal running</td><td class="good">active</td><td class="good">active</td><td class="bad">not active</td></tr>
+            </tbody>
+          </table></div>
+          <div class="readout"><b>3 / 6</b><span>PRCC = 0.5 (illustration)</span></div>
+        </figure>
+      </div>
+    </div>
+  </div>
+
+  <div class="tbl wide"><table>
+    <thead><tr><th>ID</th><th>Candidate</th><th>In plain words</th><th>Extra runs</th><th>Novelty</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td class="id">C1</td><td>Evasion Budget</td><td>How much tampering is needed to slip past the assertion</td><td class="num">0</td><td>likely new</td><td><span class="chip ok">adopt as graded AER</span></td></tr>
+      <tr><td class="id">C2</td><td>Detection Latency</td><td>How many clock cycles until the assertion fires after the rule breaks</td><td class="num">0</td><td>likely new</td><td><span class="chip prop">optional; most Ibex checks fire in 0–1 cycles, so scores may not vary</span></td></tr>
+      <tr><td class="id">C3</td><td>Privilege/Reset Context Coverage</td><td>In which modes and reset phases the assertion is active</td><td class="num">≈10</td><td>likely new (formal)</td><td><span class="chip prop">pilot on CSR + debug</span></td></tr>
+      <tr><td class="id">C4</td><td>Rarity-weighted coverage</td><td>Count rarely used security code more heavily</td><td class="num">≈10</td><td>partly done before</td><td><span class="chip troj">reject: only reweights SRTLC</span></td></tr>
+      <tr><td class="id">C5</td><td>Unique contribution</td><td>What is lost if this one assertion is removed</td><td class="num">0</td><td>low</td><td><span class="chip troj">tie-breaker only</span></td></tr>
+      <tr><td class="id">C6</td><td>Information-flow coverage</td><td>Can secret data reach an output past every assertion</td><td class="num">≈12</td><td>done before (Meza &amp; Kastner; Eslami 2022)</td><td><span class="chip troj">reject: overlaps SAPC</span></td></tr>
+    </tbody>
+  </table></div>
+  <p class="note"><b>Recommendation:</b> keep 3 metrics, make AER graded with the Evasion Budget, and add PRCC only if the two-module pilot shows real differences between assertions. Full report: <code>docs/research/new_metric_ideas.md</code>.</p>
+</section>
+
 <!-- LITERATURE -->
 <section id="literature" class="stack">
   <div class="eyebrow">Literature · 72 papers surveyed</div>
@@ -449,7 +601,23 @@ AER = 0  if JasperGold finds one (and shows the exact trace)</div>
     </tbody>
   </table></div>
 
-  <h3>The four problems to solve</h3>
+  <h3>All eight attacks from the red team</h3>
+  <div class="tbl wide"><table>
+    <thead><tr><th>#</th><th>Attack, in plain words</th><th>How serious</th><th>What answers it</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td>SAPC repeats SRTLC: measured with the cone of influence, it is almost always 100% or 0%.</td><td class="bad">fatal if true</td><td>Count real SPV paths to the assertion's output; show SRTLC and SAPC do not correlate strongly.</td></tr>
+      <tr><td class="num">2</td><td>AER's rule P is not defined. If P is the assertion itself, AER is always 1.</td><td class="bad">fatal if unclear</td><td>Take P from the NS31A expert property; show one real evasion trace in the paper.</td></tr>
+      <tr><td class="num">3</td><td>AER is Chuah's model plus a standard tool trick, and 0/1 makes most assertions tie.</td><td>major</td><td>Credit Chuah; use the graded Evasion Budget; show the scores really vary.</td></tr>
+      <tr><td class="num">4</td><td>The Trojans are not independent: we wrote both assertions and Trojans, and our earlier paper caught 100%.</td><td>major</td><td>Freeze Trojans before scoring; add outside Trojans; show some Trojans are missed.</td></tr>
+      <tr><td class="num">5</td><td>Weak statistics: 68 assertions, small counts, many ties, module effects.</td><td>major</td><td>Spearman with confidence intervals; per-module analysis; compare with simple baselines.</td></tr>
+      <tr><td class="num">6</td><td>COI coverage is a known weak proxy, and NS31A experts may have missed signals.</td><td>major</td><td>Also report proof-core coverage; list the NS31A limit as a limitation.</td></tr>
+      <tr><td class="num">7</td><td>Refinement is tested on the same Trojans that guided it ("train on test").</td><td>major</td><td>Split the Trojans; test refined assertions only on the held-out part.</td></tr>
+      <tr><td class="num">8</td><td>Equal weights and the CWE/CVSS mapping look arbitrary.</td><td>minor now</td><td>Ablation and random-weight stability; CWE stays a descriptive table only.</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note"><b>Also raised:</b> report tool run times (ETS reviewers care about test cost); 4 of the 9 modules share one file, so there are really about 6 independent modules; explain why ranking is needed if our earlier paper detected every Trojan.</p>
+
+  <h3>The four problems to solve first</h3>
   <div class="issues">
     <div class="issue fatal"><span class="sev">Must fix · SAPC</span><h3>SAPC may count nothing new</h3><p>Measured with the cone of influence, any assertion that looks at a register "watches" every road into it.</p><p class="fix"><b>Fix:</b> count only roads where SPV shows a change really reaches the assertion's failure output.</p></div>
     <div class="issue major"><span class="sev">Major · AER</span><h3>Which rule is P?</h3><p>If P is the assertion itself, AER is always 1. A fully free test signal may also make almost every assertion score 0.</p><p class="fix"><b>Fix:</b> take P from the NS31A expert property; score how many flip points or how much tampering the assertion catches (graded).</p></div>
@@ -461,6 +629,32 @@ AER = 0  if JasperGold finds one (and shows the exact trace)</div>
 <!-- CLAIM -->
 <section id="claim" class="stack">
   <div class="eyebrow">Our honest contribution</div>
+  <h2>Is this idea novel? An honest answer</h2>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Part</th><th>Already done by others?</th><th>What is ours</th></tr></thead>
+    <tbody>
+      <tr><td>SRTLC</td><td>Mostly: coverage tools measure cone-of-influence coverage</td><td>Counting only expert-defined security code</td></tr>
+      <tr><td>AER</td><td>The mechanism: Chuah et al.; mutation coverage since 2001</td><td>A score per assertion; graded by tampering budget (if adopted)</td></tr>
+      <tr><td>SAPC</td><td>Very close: our co-author's 2022 SPV security coverage</td><td>Narrowed to security registers and tested against Trojans</td></tr>
+      <tr><td>Ranking assertions</td><td>Yes: HOST 2024, ASP-DAC 2019, Assert-O 2025</td><td>Ranking by formal evidence instead of labels</td></tr>
+      <tr><td><b>All of it together</b></td><td><b>Not found in about 70 papers</b></td><td><b>Behavioural + structural evidence per assertion, computed before any Trojan, then shown to predict detection on a real RISC-V core</b></td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout"><p><b>Verdict:</b> moderate novelty. It is enough for a 6-page ETS paper if it is framed as "combination plus validation" and credits Chuah and Eslami openly. It is not a breakthrough, and claiming "new metrics" would be rejected. The real risk is the result: if AQS does not predict Trojan detection better than simple baselines (such as cone size), the main claim falls away. Fixing SAPC and defining rule P must come first.</p></div>
+
+  <h2>How to raise novelty from moderate to high</h2>
+  <p>More metrics will not do it. What lifts the paper is turning the metrics into a <b>guarantee</b> and a <b>method</b>.</p>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Idea</th><th>In plain words</th><th>Why it raises novelty</th><th>Fits the deadline?</th></tr></thead>
+    <tbody>
+      <tr><td><b>1 · Security sufficiency certificate</b></td><td>Prove: if every security signal has full Evasion Budget and full SAPC, then any Trojan that tampers with one security signal within the budget (k bits, d cycles) is <i>guaranteed</i> to be caught.</td><td>Turns scores into a formal promise: "passing these metrics means the processor is secure against this class of attack". We found nothing like it.</td><td><span class="chip ok">yes, for a bounded threat model</span></td></tr>
+      <tr><td><b>2 · Counterexample-guided repair</b></td><td>Each AER counterexample is an exact evasion trace. Build the new assertion from that trace, prove it, repeat until no evasion is left.</td><td>Replaces generic templates with a loop driven by security evidence. Existing repair work uses mutants, not evasion traces.</td><td><span class="chip prop">light version</span></td></tr>
+      <tr><td><b>3 · Security margin as the headline</b></td><td>Report for each assertion the smallest tampering (bits × cycles) that evades it.</td><td>A new, easy-to-grasp quantity, and the graded scores make the correlation meaningful.</td><td><span class="chip ok">yes, 0 extra runs</span></td></tr>
+      <tr><td><b>4 · Generalisation</b></td><td>Test on Trojans from other groups or on a second core (e.g. CVA6).</td><td>Mostly adds credibility, less novelty.</td><td><span class="chip troj">future work</span></td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">With ideas 1 and 3 (and 2 if time allows), the contribution becomes: <i>a formal security margin per assertion, a sufficiency certificate for a stated threat model, and evidence that both predict real Trojan detection.</i> That is a high-novelty framing that still rests on the same three metrics.</p>
+
   <h2>What we can claim</h2>
   <div class="callout"><p><b>Proposed novelty sentence (blue team):</b> AQS is a per-assertion security quality score computed by formal analysis on Trojan-free RTL, combining coverage of expert-defined security signals (SRTLC), FPV-based evasion resistance (AER) and SPV-based functional-path coverage (SAPC). On 68 proven Ibex assertions across 9 security modules, AQS computed before any Trojan exists correlates with detection on an independent 39-Trojan benchmark, and AQS-guided refinement improves detection on held-out Trojans.</p></div>
   <ul>
@@ -500,6 +694,30 @@ AER = 0  if JasperGold finds one (and shows the exact trace)</div>
   </table></div>
 </section>
 
+<!-- STEPS -->
+<section id="steps" class="stack">
+  <div class="eyebrow">How to run it</div>
+  <h2>Experiment steps, in order</h2>
+  <p>Each step lists what to do and what comes out. Steps 0 and 1 happen once; everything else runs per module.</p>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Step</th><th>What to do</th><th>Where</th><th>Output</th></tr></thead>
+    <tbody>
+      <tr><td class="id">0 · Freeze</td><td>Commit the 39 Trojans and the 68 assertions with a date tag <b>before</b> computing any score, so nobody can say they were tuned to fit. Split the Trojans into a refinement half and a held-out half.</td><td>laptop · git</td><td>Tagged commit; Trojan split list</td></tr>
+      <tr><td class="id">1 · Inputs</td><td>Copy the 10 bind files and the JasperGold coverage reports from the BEC 2026 work into <code>assertions/translated/</code> and <code>results/step1/</code>. List the NS31A security signals per module.</td><td>laptop</td><td>Inputs ready; security signal list</td></tr>
+      <tr><td class="id">2 · SRTLC</td><td>Python reads the coverage reports, marks which security lines each assertion sees (cone of influence and proof core), and computes SRTLC per module and per assertion.</td><td>laptop · Python</td><td><code>srtlc.csv</code>; bar chart</td></tr>
+      <tr><td class="id">3 · AER</td><td>For each bind file: write a wrapper that XORs a test signal into each security signal; write rule P from the NS31A property; run JasperGold FPV asking "P broken while A silent?". Add Evasion Budget cover checks (1 bit/1 cycle → full/unbounded).</td><td>server · FPV · 10 runs</td><td><code>aer.csv</code>; evasion traces</td></tr>
+      <tr><td class="id">4 · SAPC</td><td>For each security signal, ask JasperGold SPV for paths from every input through the signal to each assertion's failure output. Count paths reaching some assertion.</td><td>server · SPV · 10 runs</td><td><code>sapc.csv</code>; unwatched path list</td></tr>
+      <tr><td class="id">5 · AQS</td><td>Python averages the three scores per assertion and ranks all 68. Build tables A (CWE/CVSS) and B (Trojan categories). Write <code>gap_report.json</code>.</td><td>laptop · Python</td><td>Ranked table; gap report</td></tr>
+      <tr><td class="id">6 · Trojans</td><td>Run the unchanged bind files on each of the 39 Trojan designs with JasperGold FPV. A counterexample means the assertion caught the Trojan.</td><td>server · FPV · 39 runs</td><td>Detection matrix; TDER, WTDR, AAD</td></tr>
+      <tr><td class="id">7 · Validate</td><td>Spearman correlation of AQS vs number of Trojans caught, with confidence intervals; repeat with module and cone-size controls; compare with baselines (cone size, signal count, random); drop one metric at a time.</td><td>laptop · Python</td><td>Scatter plot; correlation table</td></tr>
+      <tr><td class="id">8 · Refine</td><td>Python reads the gap report and adds template assertions; each new one must be proven and non-vacuous on clean Ibex before use.</td><td>laptop + server</td><td>Refined bind files</td></tr>
+      <tr><td class="id">9 · Re-test</td><td>Run the refined bind files on the <b>held-out</b> Trojans only, plus a control that adds the same number of assertions on random signals.</td><td>server · FPV</td><td>Before/after detection; control comparison</td></tr>
+      <tr><td class="id">10 · Report</td><td>Record tool run times for every JasperGold run; collect figures for the paper.</td><td>laptop</td><td>Paper figures and tables</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note"><b>Pilot first:</b> run steps 2–4 on two modules (CSR and debug) before all nine. That shows quickly whether SAPC and AER give scores that actually differ between assertions.</p>
+</section>
+
 <!-- DECISIONS -->
 <section id="decide" class="stack">
   <div class="eyebrow">Before experiments start</div>
@@ -533,11 +751,64 @@ AER = 0  if JasperGold finds one (and shows the exact trace)</div>
     var p=document.createElementNS(ns,'path');var ty=outside[i]?150:128+i*2;
     p.setAttribute('d','M32,'+y+' C180,'+y+' 260,'+ty+' 380,'+ty);
     p.setAttribute('class',outside[i]?'wire-gap':'wire-mon');g.appendChild(p);
+    if(!outside[i]){var f=p.cloneNode();f.setAttribute('class','flowdots');g.appendChild(f);}
   });
+
+  Array.prototype.forEach.call(document.querySelectorAll('.wgrid'),function(wg){
+    for(var k=0;k<5;k++){var x=130+k*100;var l=document.createElementNS(ns,'line');l.setAttribute('x1',x);l.setAttribute('x2',x);l.setAttribute('y1',16);l.setAttribute('y2',174);l.setAttribute('stroke','var(--line)');l.setAttribute('stroke-width','1');wg.appendChild(l);
+      if(k<4){var tt=document.createElementNS(ns,'text');tt.setAttribute('x',x+50);tt.setAttribute('y',12);tt.setAttribute('text-anchor','middle');tt.setAttribute('class','small muted');tt.textContent='cycle '+(k+1);wg.appendChild(tt);}}
+    var cur=document.createElementNS(ns,'line');cur.setAttribute('x1',130);cur.setAttribute('x2',130);cur.setAttribute('y1',16);cur.setAttribute('y2',174);cur.setAttribute('class','cursor');wg.appendChild(cur);
+  });
+
+  var lad=document.getElementById('ladder');
+  var steps=['1 bit · 1 cycle','1 bit · 4 cycles','2 bits · 4 cycles','full width · 8 cycles','full width · unbounded'];
+  steps.forEach(function(lbl,i){
+    var y=210-i*40;
+    var r=document.createElementNS(ns,'rect');r.setAttribute('x',10);r.setAttribute('y',y);r.setAttribute('width',150);r.setAttribute('height',30);r.setAttribute('rx',4);
+    r.setAttribute('fill','var(--probe-soft)');r.setAttribute('stroke','var(--probe)');r.setAttribute('stroke-width','1.2');lad.appendChild(r);
+    var t=document.createElementNS(ns,'text');t.setAttribute('x',85);t.setAttribute('y',y+19);t.setAttribute('text-anchor','middle');t.setAttribute('class','small');t.textContent=lbl;lad.appendChild(t);
+  });
+  [['weak A: evaded at step 1 → EB 0.0',210,'var(--gap)'],['medium A: evaded at step 4 → EB 0.6',90,'var(--probe)'],['strong A: never evaded → EB 1',26,'var(--mon)']].forEach(function(m){
+    var l=document.createElementNS(ns,'line');l.setAttribute('x1',162);l.setAttribute('x2',190);l.setAttribute('y1',m[1]+15);l.setAttribute('y2',m[1]+15);l.setAttribute('stroke',m[2]);l.setAttribute('stroke-width','2');lad.appendChild(l);
+    var t=document.createElementNS(ns,'text');t.setAttribute('x',196);t.setAttribute('y',m[1]+19);t.setAttribute('class','small');t.setAttribute('style','fill:'+m[2]);t.textContent=m[0];lad.appendChild(t);
+  });
+
+  var climb=document.createElementNS(ns,'circle');climb.setAttribute('r',6);climb.setAttribute('fill','var(--probe)');
+  var am=document.createElementNS(ns,'animateMotion');am.setAttribute('dur','4s');am.setAttribute('repeatCount','indefinite');am.setAttribute('path','M176,225 L176,105');
+  climb.appendChild(am);lad.appendChild(climb);
+
+  var ab=document.getElementById('animToggle');
+  function setStill(still){
+    document.body.classList.toggle('still',still);
+    if(!still && typeof cyc!=='undefined' && cyc){cyc=0;drawStep();}
+    Array.prototype.forEach.call(document.querySelectorAll('svg'),function(sv){try{still?sv.pauseAnimations():sv.unpauseAnimations();}catch(e){}});
+    ab.textContent=still?'Play animations':'Pause animations';ab.setAttribute('aria-pressed',String(still));
+  }
+  ab.addEventListener('click',function(){setStill(!document.body.classList.contains('still'));});
+  try{if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)setStill(true);}catch(e){}
 
   var bw=document.getElementById('btnWeak'), bs=document.getElementById('btnStrong');
   var w=document.getElementById('weakCase'), s=document.getElementById('strongCase');
-  function show(weak){w.hidden=!weak;s.hidden=weak;bw.setAttribute('aria-pressed',String(weak));bs.setAttribute('aria-pressed',String(!weak));}
+  var isWeak=true, cyc=0, txt=document.getElementById('cycText');
+  var says={
+    1:'Cycle 1: user mode, nothing unusual. Rule P holds and the assertion is silent.',
+    2:{weak:'Cycle 2: the test signal flips the write-enable, so mstatus changes and rule P breaks. Assertion A stays silent, because no CSR write instruction ran. That is the evasion.',
+       strong:'Cycle 2: the test signal flips the write-enable, so mstatus changes and rule P breaks. The stronger assertion fires, because it watches mstatus itself.'},
+    3:'Cycle 3: the test signal returns to 0; nothing changes.',
+    4:{weak:'Cycle 4: trace ends. JasperGold found a silent break, so AER = 0.',
+       strong:'Cycle 4: trace ends. Every break made the assertion fire; if JasperGold proves this for all patterns, AER = 1.'}
+  };
+  function drawStep(){
+    Array.prototype.forEach.call(document.querySelectorAll('.cursor'),function(c){
+      if(cyc===0){c.style.animation='';c.style.transform='';}
+      else{c.style.animation='none';c.style.transform='translateX('+((cyc-1)*100+50)+'px)';}
+    });
+    if(cyc===0){txt.innerHTML='Press <b>Next cycle</b> to walk through the trace one clock cycle at a time.';return;}
+    var m=says[cyc];txt.textContent=(typeof m==='string')?m:(isWeak?m.weak:m.strong);
+  }
+  document.getElementById('nextCyc').addEventListener('click',function(){cyc=cyc>=4?1:cyc+1;drawStep();});
+  document.getElementById('prevCyc').addEventListener('click',function(){cyc=cyc<=1?4:cyc-1;drawStep();});
+  function show(weak){isWeak=weak;w.hidden=!weak;s.hidden=weak;bw.setAttribute('aria-pressed',String(weak));bs.setAttribute('aria-pressed',String(!weak));if(cyc)drawStep();}
   bw.addEventListener('click',function(){show(true)});bs.addEventListener('click',function(){show(false)});
 })();
 </script>
