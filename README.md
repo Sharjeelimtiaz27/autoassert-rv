@@ -9,6 +9,10 @@
 > "AutoAssert"). Candidates: AQS-RV, SecRank-RV, FormalRank-RV.
 > Target venue: IEEE European Test Symposium (ETS) 2027.
 
+**Visual guide to the metrics and experiments:**
+[sharjeelimtiaz27.github.io/autoassert-rv](https://sharjeelimtiaz27.github.io/autoassert-rv/)
+(source: [docs/index.html](docs/index.html))
+
 ---
 
 ## What this repository does
