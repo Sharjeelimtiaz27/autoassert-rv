@@ -7,7 +7,7 @@ This guide explains the three metrics (SRTLC, AER, SAPC), the AQS score, the fiv
 - **[Open the guide as a web page](https://htmlpreview.github.io/?https://github.com/Sharjeelimtiaz27/autoassert-rv/blob/main/docs/index.html)**. This is the full interactive page in the browser.
 - **[Open the guide as a PDF](Assertion_Quality_Ranker.pdf)**. GitHub shows it directly.
 
-The page source is [index.html](index.html). It is generated from [ranker_visual.html](ranker_visual.html).
+The page source is [index.html](index.html).
 
 ## Written documents
 
