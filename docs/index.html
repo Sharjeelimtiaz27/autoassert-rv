@@ -189,6 +189,19 @@ ol.decide{margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:8px
 .cursor{stroke:var(--accent);stroke-width:2;opacity:.7;animation:sweep 4s linear infinite}
 body.still *{animation-play-state:paused!important}
 .animbtn{font:inherit;font-size:.85rem;padding:5px 12px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);cursor:pointer;align-self:flex-start}
+@keyframes flashok{0%,100%{fill:var(--mon-soft)}50%{fill:var(--mon)}}
+.flashok{animation:flashok .7s ease-in-out 3}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.window{transform-origin:150px 0;transform-box:view-box;animation:grow 4s linear infinite}
+.ctx{display:grid;grid-template-columns:auto repeat(3,minmax(0,1fr));gap:6px;align-items:stretch}
+.ctx .hd{font-family:var(--display);font-weight:600;font-size:.88rem;color:var(--muted);display:flex;align-items:center;justify-content:center;text-align:center}
+.ctx .rh{justify-content:flex-start;text-align:left}
+.tile{border:1px solid var(--line);border-radius:8px;padding:10px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:.82rem;background:var(--surface);transition:outline-color .2s;outline:3px solid transparent;outline-offset:1px;min-width:0;text-align:center}
+.tile .lamp{width:16px;height:16px;border-radius:50%;background:var(--line)}
+.tile.on .lamp{background:var(--mon);box-shadow:0 0 0 5px var(--mon-soft)}
+.tile.on{color:var(--mon)} .tile.off{color:var(--gap)}
+.tile.cur{outline-color:var(--accent)}
+.ladstep{transition:stroke-width .2s}
 .stepctl{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
 .stepctl span{font-size:.92rem;color:var(--ink);flex:1 1 260px;min-width:0;background:var(--soft);border-radius:6px;padding:6px 10px}
 footer{font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);padding-top:16px;display:flex;flex-direction:column;gap:6px}
@@ -416,31 +429,55 @@ AER = 0  if JasperGold finds one (and shows the exact trace)</div>
     <p class="oneline">Are there roads into the security register that no alarm is watching?</p>
     <div class="two">
       <div class="stack">
-        <div class="callout"><h3>Everyday picture</h3><p>Eight roads lead to the vault (<code>mstatus</code>). For each road we ask whether a car on it would trigger any alarm. Six roads would, two would not. SAPC = 6 / 8 = 75%.</p></div>
+        <div class="callout"><h3>Everyday picture</h3><p>Six roads lead into a vault. Inside the vault are two rooms, and the alarm sensor is only in one of them. A car on a road into the alarmed room sets it off; a car on a road into the other room does not, even though both roads "enter the vault".</p></div>
         <ol class="steps">
-          <li>JasperGold SPV lists every path from a chip input to a security register.</li>
-          <li>For each path, check whether a change travelling along it reaches some assertion.</li>
-          <li>Paths that reach no assertion are blind spots.</li>
+          <li>JasperGold SPV lists every path from a chip input into a security register.</li>
+          <li>For each path, it checks whether a change sent along it really travels on to some assertion's failure output (the alarm).</li>
+          <li>Paths whose changes never reach an alarm are blind spots.</li>
         </ol>
-        <div class="formula">SAPC = paths into security registers watched by an assertion
-       ──────────────────────────────────────────────────  × 100%
-       all paths into security registers</div>
-        <p class="note"><b>How it differs from AER:</b> AER only flips the one wire the test signal is attached to. SAPC looks at <i>all</i> roads, including ones AER never touched.</p>
+        <div class="formula">       roads whose change reaches an alarm
+SAPC = ───────────────────────────────────
+       all roads into security registers</div>
       </div>
-      <figure>
-        <div class="diagram">
-          <svg viewBox="0 0 480 260" role="img" aria-label="Eight inputs with paths into mstatus; six inside the watched area, two dashed red paths outside">
-            <path class="coi" d="M60,20 C200,16 330,70 380,110 L380,160 C330,175 200,190 60,190 Z"/>
-            <text x="220" y="12" class="small lbl-mon" text-anchor="middle">area watched by assertions</text>
-            <g id="paths"></g>
-            <rect class="box-acc" x="380" y="115" width="92" height="40" rx="5"/>
-            <text x="426" y="139" text-anchor="middle" class="lbl-acc">mstatus</text>
-          </svg>
-        </div>
-        <div class="readout"><b>75%</b><span>6 of 8 roads watched (example)</span></div>
-        <figcaption>Dots on the left are chip inputs. Green roads are watched; the two dashed red roads reach <code>mstatus</code> with no alarm.</figcaption>
-      </figure>
+      <div class="stack">
+        <h3>The players (illustration on Ibex's <code>mstatus</code>)</h3>
+        <div class="role p"><span class="who">Security register</span><p><code>mstatus</code> has several fields. Two matter here: <b>MPP</b> (previous privilege level) and <b>MIE</b> (interrupt enable).</p></div>
+        <div class="role a"><span class="who">Assertion A</span><p>Checks only the <b>MPP</b> field: "MPP may only change in allowed ways".</p></div>
+        <div class="role t"><span class="who">Six inputs</span><p>Signals that can write into <code>mstatus</code>. Four reach MPP; two reach only MIE.</p></div>
+        <p class="note"><b>How it differs from AER:</b> AER flips one chosen wire. SAPC checks <i>every</i> road into the register, including ones AER never touched.</p>
+      </div>
     </div>
+
+    <figure>
+      <div class="seg" role="group" aria-label="Choose how roads are counted">
+        <button type="button" id="sapcNew" aria-pressed="true">Fixed way: does the change reach the alarm?</button>
+        <button type="button" id="sapcOld" aria-pressed="false">Old way: cone of influence</button>
+      </div>
+      <div class="diagram">
+        <svg id="sapcSvg" viewBox="0 0 640 290" role="img" aria-label="Six inputs feed the mstatus register. Four reach the MPP field, which assertion A checks; two reach only the MIE field, which nobody checks.">
+          <rect id="sapcCoi" class="coi" x="272" y="44" width="176" height="208" rx="10" hidden/>
+          <text id="sapcCoiTxt" x="360" y="272" text-anchor="middle" class="small lbl-mon" hidden>A's cone of influence covers all of mstatus</text>
+          <g id="sapcRoads"></g>
+          <rect x="290" y="70" width="140" height="160" rx="6" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.4"/>
+          <text x="360" y="62" text-anchor="middle" class="lbl-acc">mstatus register</text>
+          <rect x="300" y="95" width="120" height="40" rx="4" fill="var(--surface)" stroke="var(--mon)" stroke-width="1.4"/>
+          <text x="360" y="112" text-anchor="middle">MPP field</text><text x="360" y="127" text-anchor="middle" class="small lbl-mon">checked by A</text>
+          <rect x="300" y="175" width="120" height="40" rx="4" fill="var(--surface)" stroke="var(--line)" stroke-width="1.4"/>
+          <text x="360" y="192" text-anchor="middle">MIE field</text><text x="360" y="207" text-anchor="middle" class="small muted">checked by nobody</text>
+          <rect id="sapcA" x="490" y="92" width="146" height="46" rx="5" fill="var(--mon-soft)" stroke="var(--mon)" stroke-width="1.4"/>
+          <text x="563" y="111" text-anchor="middle" class="lbl-mon">Assertion A</text><text x="563" y="127" text-anchor="middle" class="small muted">failure output = alarm</text>
+          <g id="sapcX"><text x="440" y="200" class="lbl-gap" style="font-size:18px">✗</text><text x="458" y="200" class="small lbl-gap">no alarm</text></g>
+          <g id="sapcMover"></g>
+        </svg>
+      </div>
+      <div class="stepctl">
+        <button type="button" class="animbtn" id="prevRoad">◀ Previous road</button>
+        <button type="button" class="animbtn" id="nextRoad">Next road ▶</button>
+        <span id="roadText" aria-live="polite">Press <b>Next road</b> to send a change down one road at a time.</span>
+      </div>
+      <div class="readout"><b id="sapcNum">67%</b><span id="sapcCap">4 of 6 roads reach the alarm (fixed way)</span></div>
+      <figcaption>Illustration with made-up roads, not measured on Ibex. Switch to "Old way" to see the problem the review found: counted by cone of influence, all six roads look watched (100%), even the two whose changes A never checks.</figcaption>
+    </figure>
     <div class="callout warn"><h3>Problem the review found, and the fix</h3>
       <p>If "watched" just means "the road lies inside the assertion's cone of influence", every assertion that looks at <code>mstatus</code> automatically watches <i>all</i> roads into it. The number would be almost always 100% or 0% and would just repeat SRTLC.</p>
       <p><b>Fix:</b> for each road, ask SPV whether a change sent down it actually travels through <code>mstatus</code> all the way to the assertion's failure output. This follows the method of our co-author's earlier work (Eslami, Ghasempouri, Pagliarini, 2022).</p>
@@ -483,8 +520,8 @@ AER = 0  if JasperGold finds one (and shows the exact trace)</div>
           <p><b>The problem it fixes:</b> with plain AER, almost every assertion gets the same answer (all 0 or all 1). Then the scores tie, and the correlation with Trojan detection has nothing to work with.</p>
           <p><b>The idea:</b> instead of "can the test signal break the rule at all?", ask "how much tampering is needed?". JasperGold is limited step by step: first 1 bit for 1 cycle, then more bits, then more cycles. The assertion's score depends on the smallest tampering that slips past it.</p>
           <p><b>Everyday picture:</b> a lock that opens with a paperclip is worse than one that needs a drill, even though both can be opened.</p>
-          <div class="formula">EB = 1                    if no tampering level evades A
-EB = (level − 1) / levels  otherwise (cheapest evading level)</div>
+          <div class="formula">no level evades A:  EB = 1
+evaded at level L:  EB = (L − 1) / 5</div>
           <p class="note"><b>Cost:</b> no extra JasperGold runs; extra cover checks inside the AER runs. <b>Novelty:</b> likely new as a per-assertion score; the "k faults" idea comes from fault-attack research (cite IACR ePrint 2024/247). <b>Fits the advisor's decision:</b> it is a better AER, not a 4th metric.</p>
         </div>
         <figure>
@@ -495,6 +532,44 @@ EB = (level − 1) / levels  otherwise (cheapest evading level)</div>
             </svg>
           </div>
           <figcaption>Each step is a bigger tampering budget. Weak assertions break at the bottom step; strong ones survive every step.</figcaption>
+          <div class="stepctl">
+            <button type="button" class="animbtn" id="nextLevel">Try next tampering level ▶</button>
+            <span id="levelText" aria-live="polite">Follow the <b>medium</b> assertion: press the button to let JasperGold try a bigger budget each time.</span>
+          </div>
+        </figure>
+      </div>
+    </div>
+  </div>
+
+  <div class="sheet">
+    <div class="sheet-head"><h3>C2 · Detection Latency (DLat): how fast does the alarm ring?</h3><span class="chip prop">optional, pilot first</span></div>
+    <div class="sheet-body">
+      <div class="two">
+        <div class="stack">
+          <div class="callout"><h3>Everyday picture</h3><p>Two burglar alarms both detect a break-in. One rings immediately; the other rings three minutes later. Both "work", but the late one gives the burglar three minutes to grab things and leave.</p></div>
+          <p><b>In the processor:</b> a Trojan breaks a rule in cycle 1. A fast assertion fires in the same cycle. A slow assertion only fires in cycle 4. In those 3 cycles the Trojan's payload could already copy a secret register value out.</p>
+          <p><b>What DLat measures:</b> the number of clock cycles between the rule breaking and the assertion firing, proven by JasperGold as a worst case (not one lucky run).</p>
+          <div class="formula">DLat score = 1 − min(DLat, 8) / 8
+fast A: DLat 0 → score 1.00
+slow B: DLat 3 → score 0.63</div>
+          <p class="note"><b>Cost:</b> no extra runs; extra checks inside the AER runs. <b>Novelty:</b> likely new; no prior assertion-latency metric was found. <b>Risk:</b> many Ibex checks fire within 0–1 cycles, and PMP is combinational (always 0), so scores may hardly differ. Try it on two modules first.</p>
+        </div>
+        <figure>
+          <div class="diagram">
+            <svg viewBox="0 0 580 200" role="img" aria-label="Rule breaks in cycle 1. Fast assertion A fires in cycle 1. Slow assertion B fires in cycle 4, leaving a three-cycle attacker window.">
+              <g class="wgrid5"></g>
+              <text x="4" y="48">rule broken</text><text x="4" y="88">fast alarm A</text><text x="4" y="128">slow alarm B</text><text x="4" y="168">secret leaking</text>
+              <rect class="window" x="150" y="108" width="240" height="26" fill="var(--gap-soft)"/>
+              <text x="270" y="102" text-anchor="middle" class="small lbl-gap">attacker window: 3 cycles</text>
+              <polyline fill="none" stroke-width="2" stroke="var(--gap)" points="130,48 150,48 150,34 550,34"/>
+              <polyline fill="none" stroke-width="2" stroke="var(--mon)" points="130,88 150,88 150,74 230,74 230,88 550,88"/>
+              <polyline fill="none" stroke-width="2" stroke="var(--mon)" points="130,128 390,128 390,114 470,114 470,128 550,128"/>
+              <polyline fill="none" stroke-width="2" stroke="var(--probe)" points="130,168 230,168 230,154 390,154 390,168 550,168"/>
+              <text x="190" y="190" text-anchor="middle" class="small lbl-mon">A: DLat 0</text>
+              <text x="430" y="190" text-anchor="middle" class="small lbl-mon">B: DLat 3</text>
+            </svg>
+          </div>
+          <figcaption>Illustration. The red band grows while the slow alarm has not yet fired; the orange line shows a secret leaking during that window.</figcaption>
         </figure>
       </div>
     </div>
@@ -510,13 +585,21 @@ EB = (level − 1) / levels  otherwise (cheapest evading level)</div>
           <p class="note"><b>Cost:</b> about 10 cheap JasperGold runs. <b>Novelty:</b> likely new for formal checks (only simulation tools measure privilege coverage). <b>Risk:</b> if most assertions are active everywhere, every score is 1 and the metric is useless, so first try it on two modules (CSR and debug). Links to CWE-1271 (insecure reset values).</p>
         </div>
         <figure>
-          <div class="tbl"><table aria-label="Example PRCC grid for one assertion">
-            <thead><tr><th>Example assertion</th><th>user</th><th>machine</th><th>debug</th></tr></thead>
-            <tbody>
-              <tr><td>just after reset</td><td class="bad">not active</td><td class="good">active</td><td class="bad">not active</td></tr>
-              <tr><td>normal running</td><td class="good">active</td><td class="good">active</td><td class="bad">not active</td></tr>
-            </tbody>
-          </table></div>
+          <div class="ctx" id="ctxGrid" role="img" aria-label="Six situations: user, machine and debug mode, each just after reset and in normal running. The example assertion is active in three of them.">
+            <span class="hd"></span><span class="hd">user mode</span><span class="hd">machine mode</span><span class="hd">debug mode</span>
+            <span class="hd rh">just after reset</span>
+            <div class="tile off" data-i="0"><span class="lamp"></span>not active</div>
+            <div class="tile on" data-i="1"><span class="lamp"></span>active</div>
+            <div class="tile off" data-i="2"><span class="lamp"></span>not active</div>
+            <span class="hd rh">normal running</span>
+            <div class="tile on" data-i="3"><span class="lamp"></span>active</div>
+            <div class="tile on" data-i="4"><span class="lamp"></span>active</div>
+            <div class="tile off" data-i="5"><span class="lamp"></span>not active</div>
+          </div>
+          <div class="stepctl">
+            <button type="button" class="animbtn" id="nextCtx">Next situation ▶</button>
+            <span id="ctxText" aria-live="polite">The blue frame walks through the six situations the processor can be in.</span>
+          </div>
           <div class="readout"><b>3 / 6</b><span>PRCC = 0.5 (illustration)</span></div>
         </figure>
       </div>
@@ -742,17 +825,58 @@ EB = (level − 1) / levels  otherwise (cheapest evading level)</div>
   var gaps={3:1,7:1,12:1,18:1,19:1,25:1,31:1,32:1,36:1,39:1};
   for(var i=0;i<40;i++){var d=document.createElement('div');d.className=gaps[i]?'ln-gap':'ln-mon';d.textContent='L'+(101+i*7);grid.appendChild(d);}
 
-  var ns='http://www.w3.org/2000/svg', g=document.getElementById('paths');
-  var ys=[32,58,84,110,136,162,200,234], outside={6:1,7:1};
-  ys.forEach(function(y,i){
-    var c=document.createElementNS(ns,'circle');c.setAttribute('cx',26);c.setAttribute('cy',y);c.setAttribute('r',6);
-    c.setAttribute('fill',outside[i]?'var(--gap)':'var(--mon)');g.appendChild(c);
-    var t=document.createElementNS(ns,'text');t.setAttribute('x',6);t.setAttribute('y',y+4);t.setAttribute('class','small muted');t.textContent='i'+(i+1);g.appendChild(t);
-    var p=document.createElementNS(ns,'path');var ty=outside[i]?150:128+i*2;
-    p.setAttribute('d','M32,'+y+' C180,'+y+' 260,'+ty+' 380,'+ty);
-    p.setAttribute('class',outside[i]?'wire-gap':'wire-mon');g.appendChild(p);
-    if(!outside[i]){var f=p.cloneNode();f.setAttribute('class','flowdots');g.appendChild(f);}
+  var ns='http://www.w3.org/2000/svg';
+  function el(tag,attrs){var e=document.createElementNS(ns,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);return e;}
+  function isStill(){return document.body.classList.contains('still');}
+
+  /* ---- SAPC roads ---- */
+  var roads=[{y:40,f:'mpp'},{y:85,f:'mpp'},{y:130,f:'mie'},{y:175,f:'mpp'},{y:220,f:'mie'},{y:265,f:'mpp'}];
+  var sapcMode='new', road=-1, rg=document.getElementById('sapcRoads'), roadEls=[];
+  roads.forEach(function(r,i){
+    var fy=r.f==='mpp'?115:195;
+    r.d='M38,'+r.y+' C150,'+r.y+' 190,'+fy+' 300,'+fy+' L420,'+fy+(r.f==='mpp'?' L500,'+fy:'');
+    var grp=el('g',{});
+    grp.appendChild(el('circle',{cx:30,cy:r.y,r:7,fill:'var(--ink)'}));
+    var t=el('text',{x:6,y:r.y+4,'class':'small muted'});t.textContent='i'+(i+1);grp.appendChild(t);
+    var p=el('path',{d:r.d});grp.appendChild(p);
+    var f=el('path',{d:r.d,'class':'flowdots'});grp.appendChild(f);
+    rg.appendChild(grp);roadEls.push({g:grp,p:p});
   });
+  function paintRoads(){
+    roads.forEach(function(r,i){
+      var watched = sapcMode==='old' || r.f==='mpp';
+      roadEls[i].p.setAttribute('class',watched?'wire-mon':'wire-gap');
+      roadEls[i].g.style.opacity=(road<0||road===i)?'1':'.22';
+    });
+    ['sapcCoi','sapcCoiTxt'].forEach(function(id){var e=document.getElementById(id);if(sapcMode==='old')e.removeAttribute('hidden');else e.setAttribute('hidden','');});
+    document.getElementById('sapcX').style.display=sapcMode==='old'?'none':'';
+    document.getElementById('sapcNum').textContent=sapcMode==='old'?'100%':'67%';
+    document.getElementById('sapcCap').textContent=sapcMode==='old'?'6 of 6 roads "watched": misleading, the old way':'4 of 6 roads reach the alarm (fixed way)';
+  }
+  function sendRoad(){
+    var r=roads[road], mv=document.getElementById('sapcMover');
+    while(mv.firstChild)mv.removeChild(mv.firstChild);
+    var endX=r.f==='mpp'?500:420, endY=r.f==='mpp'?115:195;
+    var dot=el('circle',{r:7,fill:'var(--probe)',stroke:'var(--surface)','stroke-width':2});
+    if(isStill()){dot.setAttribute('cx',endX);dot.setAttribute('cy',endY);mv.appendChild(dot);}
+    else{dot.setAttribute('cx',0);dot.setAttribute('cy',0);
+      var am=el('animateMotion',{dur:'1.6s',fill:'freeze',begin:'indefinite',path:r.d});dot.appendChild(am);mv.appendChild(dot);
+      try{am.beginElement();}catch(e){dot.setAttribute('cx',endX);dot.setAttribute('cy',endY);dot.removeChild(am);}}
+    var A=document.getElementById('sapcA');A.classList.remove('flashok');
+    if(r.f==='mpp'){setTimeout(function(){A.classList.add('flashok');},isStill()?0:1500);}
+    var n='Road '+(road+1)+': ', msg;
+    if(r.f==='mpp') msg=n+'the change travels into the MPP field, which assertion A checks. A fires, so this road is watched.';
+    else if(sapcMode==='new') msg=n+'the change lands in the MIE field. A only checks MPP, so no alarm sounds. This road is a blind spot.';
+    else msg=n+'it enters mstatus, and A’s cone of influence contains mstatus, so the old way counts it as watched. But A never checks MIE: this is the flaw.';
+    document.getElementById('roadText').textContent=msg;
+    paintRoads();
+  }
+  document.getElementById('nextRoad').addEventListener('click',function(){road=(road+1)%roads.length;sendRoad();});
+  document.getElementById('prevRoad').addEventListener('click',function(){road=road<=0?roads.length-1:road-1;sendRoad();});
+  function setSapc(m){sapcMode=m;document.getElementById('sapcNew').setAttribute('aria-pressed',String(m==='new'));document.getElementById('sapcOld').setAttribute('aria-pressed',String(m==='old'));if(road>=0)sendRoad();else paintRoads();}
+  document.getElementById('sapcNew').addEventListener('click',function(){setSapc('new');});
+  document.getElementById('sapcOld').addEventListener('click',function(){setSapc('old');});
+  paintRoads();
 
   Array.prototype.forEach.call(document.querySelectorAll('.wgrid'),function(wg){
     for(var k=0;k<5;k++){var x=130+k*100;var l=document.createElementNS(ns,'line');l.setAttribute('x1',x);l.setAttribute('x2',x);l.setAttribute('y1',16);l.setAttribute('y2',174);l.setAttribute('stroke','var(--line)');l.setAttribute('stroke-width','1');wg.appendChild(l);
@@ -760,11 +884,32 @@ EB = (level − 1) / levels  otherwise (cheapest evading level)</div>
     var cur=document.createElementNS(ns,'line');cur.setAttribute('x1',130);cur.setAttribute('x2',130);cur.setAttribute('y1',16);cur.setAttribute('y2',174);cur.setAttribute('class','cursor');wg.appendChild(cur);
   });
 
+  /* ---- C2 latency grid ---- */
+  Array.prototype.forEach.call(document.querySelectorAll('.wgrid5'),function(wg){
+    for(var k=0;k<6;k++){var x=150+k*80;wg.appendChild(el('line',{x1:x,x2:x,y1:16,y2:176,stroke:'var(--line)','stroke-width':1}));
+      if(k<5){var tt=el('text',{x:x+40,y:12,'text-anchor':'middle','class':'small muted'});tt.textContent='cycle '+(k+1);wg.appendChild(tt);}}
+    wg.appendChild(el('line',{x1:150,x2:150,y1:16,y2:176,'class':'cursor'}));
+  });
+
+  /* ---- C3 context tiles ---- */
+  var tiles=document.querySelectorAll('#ctxGrid .tile'), ctxI=-1;
+  var ctxNames=['user mode just after reset','machine mode just after reset','debug mode just after reset','user mode in normal running','machine mode in normal running','debug mode in normal running'];
+  function showCtx(){
+    Array.prototype.forEach.call(tiles,function(t,i){t.classList.toggle('cur',i===ctxI);});
+    var on=tiles[ctxI].classList.contains('on');
+    document.getElementById('ctxText').textContent='Situation '+(ctxI+1)+' of 6, '+ctxNames[ctxI]+': '+(on?'the assertion’s trigger can happen here, so it guards this situation.':'the assertion is never triggered here, so an attack in this situation goes unchecked.');
+  }
+  document.getElementById('nextCtx').addEventListener('click',function(){ctxI=(ctxI+1)%6;showCtx();ctxManual=true;});
+  var ctxManual=false;
+  setInterval(function(){if(isStill()||ctxManual)return;ctxI=(ctxI+1)%6;showCtx();},1600);
+
+  /* ---- C1 ladder ---- */
   var lad=document.getElementById('ladder');
   var steps=['1 bit · 1 cycle','1 bit · 4 cycles','2 bits · 4 cycles','full width · 8 cycles','full width · unbounded'];
+  var ladRects=[];
   steps.forEach(function(lbl,i){
     var y=210-i*40;
-    var r=document.createElementNS(ns,'rect');r.setAttribute('x',10);r.setAttribute('y',y);r.setAttribute('width',150);r.setAttribute('height',30);r.setAttribute('rx',4);
+    var r=document.createElementNS(ns,'rect');r.setAttribute('x',10);r.setAttribute('y',y);r.setAttribute('width',150);r.setAttribute('height',30);r.setAttribute('rx',4);r.setAttribute('class','ladstep');ladRects.push(r);
     r.setAttribute('fill','var(--probe-soft)');r.setAttribute('stroke','var(--probe)');r.setAttribute('stroke-width','1.2');lad.appendChild(r);
     var t=document.createElementNS(ns,'text');t.setAttribute('x',85);t.setAttribute('y',y+19);t.setAttribute('text-anchor','middle');t.setAttribute('class','small');t.textContent=lbl;lad.appendChild(t);
   });
@@ -776,6 +921,17 @@ EB = (level − 1) / levels  otherwise (cheapest evading level)</div>
   var climb=document.createElementNS(ns,'circle');climb.setAttribute('r',6);climb.setAttribute('fill','var(--probe)');
   var am=document.createElementNS(ns,'animateMotion');am.setAttribute('dur','4s');am.setAttribute('repeatCount','indefinite');am.setAttribute('path','M176,225 L176,105');
   climb.appendChild(am);lad.appendChild(climb);
+  var lvl=-1;
+  document.getElementById('nextLevel').addEventListener('click',function(){
+    lvl=(lvl+1)%5;
+    ladRects.forEach(function(r,i){r.setAttribute('stroke-width',i===lvl?'3':'1.2');r.setAttribute('fill',i<lvl?'var(--mon-soft)':(i===lvl?(lvl===3?'var(--gap-soft)':'var(--mon-soft)'):'var(--probe-soft)'));});
+    var txt=['Level 1: JasperGold may flip 1 bit for 1 cycle. Every attempt makes the medium assertion fire. Caught.',
+             'Level 2: 1 bit for up to 4 cycles. Still caught.',
+             'Level 3: 2 bits for up to 4 cycles. Still caught.',
+             'Level 4: all bits for up to 8 cycles. JasperGold finds a way past the assertion. Evaded, so EB = (4 − 1) / 5 = 0.6.',
+             'Level 5 is not needed: the assertion was already evaded at level 4. Press again to restart.'][lvl];
+    document.getElementById('levelText').textContent=txt;
+  });
 
   var ab=document.getElementById('animToggle');
   function setStill(still){
