@@ -1,4 +1,21 @@
-# Candidate Metrics — Reference Doc (draft, for advisor discussion)
+# Candidate Metrics — Literature Notes (September 2026 pass)
+
+> **Status after the advisor meeting (14 Oct 2026). Read this first.**
+> - Kept as metrics: **SRTLC, AER, SAPC** (sections 1–3 below).
+> - **TCFC (section 4) and the CVSS term (section 5) are no longer metrics.**
+>   They are now comparison tables (assertion → CWE/CVSS, assertion →
+>   TrustHub category). The 42 TCFC oracle runs are dropped.
+> - **AQS is now `(SRTLC_contrib + AER + SAPC_contrib) / 3`.** The 5-term
+>   formula in section 5 is out of date.
+> - In AER, the injected free variable is now called a **test signal**
+>   (`test_sig`), not "TROJ", because AER runs on the clean design.
+> - New finding: arXiv 2201.01130 (the closest prior work to SAPC) is by
+>   Eslami, **Ghasempouri** and Pagliarini (ISQED 2022), which is our own
+>   group's earlier work. Present SAPC as an extension of it.
+> - The current explanation is [metrics_explained.md](metrics_explained.md).
+>   The deeper reviews are in [research/](research/).
+>
+> The notes below are kept as the record of the September literature pass.
 
 Five candidate metrics for the AQS ranker. Lightweight literature pass only
 (targeted web search, not the full deep-research skill) — treat sources
@@ -67,7 +84,7 @@ unnoticed," assuming the wire already exists.
 **Where the idea comes from:** Directly extends the free-XOR-variable
 generic hardware-Trojan model from **Chuah et al., "Formal Verification of
 Security Properties on RISC-V Processors"** (RISC-V security-assertion
-translation + Trojan testing, ~MEMOCODE-family work) — their model tests
+translation + Trojan testing, MBMV 2024; corrected Oct 2026) — their model tests
 a module/PC-level property against an LLM-defined Trojan; AER reframes the
 same free-variable mechanism as a **per-assertion** score, independent of
 any specific Trojan.
@@ -138,7 +155,7 @@ way to get rejected.
 
 ---
 
-## 4. TCFC — Trojan Category Formal Coverage
+## 4. TCFC — Trojan Category Formal Coverage (DROPPED: now a comparison table)
 
 **Formula:**
 ```
@@ -166,7 +183,7 @@ like the most defensibly original of the five metrics from what surfaced.
 
 ---
 
-## 5. AQS — Assertion Quality Score (composite)
+## 5. AQS — Assertion Quality Score (OUT OF DATE: now the mean of SRTLC, AER, SAPC)
 
 **Formula:**
 ```

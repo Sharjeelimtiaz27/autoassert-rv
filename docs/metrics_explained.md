@@ -1,429 +1,330 @@
-# AutoAssert-RV: The Assertion Quality Ranker — Explained
+# The Assertion Quality Ranker — Explained
 
-**Purpose of this document:** explain, from scratch, the five metrics that
-make up our security assertion quality ranker (AQS), for advisor discussion.
-No prior familiarity with JasperGold FPV/SPV is assumed. Each metric is
-given in full, with its abbreviation, a plain-language intuition, the exact
-mechanical steps a reader could reproduce, the formula, and a small worked
-example with made-up numbers so the arithmetic is concrete.
+*Version 2, updated after the advisor meeting of 14 October 2026.*
 
-**The one-sentence pitch:** Given a set of security assertions (SVA
-properties) written for a RISC-V processor, can we compute, before ever
-running a single hardware Trojan, a formal score that tells us which
-assertions are strong and which are weak — and does that score actually
-predict which assertions catch real Trojans when we test them? That formal
-score is **AQS**. The five metrics below are its five ingredients.
+**What changed in this version:** the ranker now has three metrics: SRTLC,
+AER and SAPC. The former metrics 4 (Trojan category coverage) and 5 (CVSS
+severity) are now **comparison tables**, not metrics. In AER, the injected
+variable is called a **test signal**, because AER runs on the clean design
+and no Trojan is involved.
 
----
+**Purpose of this document:** explain the ranker from scratch, so it can be
+read and discussed without prior knowledge of JasperGold FPV or SPV. Each
+metric has its full name, a one-line intuition, numbered steps, the formula,
+a small worked example and an honest note on where the idea comes from.
 
-## Background you need first: what is an "assertion" and a "bind file"?
-
-A **security assertion** is a small formal statement written in SystemVerilog
-Assertions (SVA) that says "this bad thing must never happen" — e.g. "the
-machine-mode status register must never change value while the processor is
-in user mode." Each assertion is placed in a separate **bind file** (never
-inside the processor's own source code) that attaches it to the RTL design
-without modifying the design itself.
-
-A formal verification tool (we use **Cadence JasperGold**) then
-mathematically proves, for every possible input sequence the hardware could
-ever receive, whether the assertion can be violated. Two outcomes:
-- **Proven** — the tool proved the bad thing can never happen (assertion holds).
-- **CEX (counterexample)** — the tool found a concrete sequence of inputs
-  that makes the bad thing happen (assertion is violated), and shows you
-  exactly what that sequence is.
-
-Whether "CEX" is good or bad news **depends on what RTL you ran it on** —
-this trips people up, so it's worth stating plainly up front:
-- Run on the **clean, un-modified** processor → CEX means the assertion is
-  *wrong* (a translation/writing bug) — bad news, fix the assertion.
-- Run on a **Trojan-infected** copy of the processor → CEX means the
-  assertion *caught the Trojan* — good news, the assertion works.
-
-Everything below happens on clean RTL only, except the final Trojan
-evaluation stage, which is what validates the whole ranker.
+**The one-sentence pitch:** we have 68 security assertions for a RISC-V
+processor that are already proven correct. Can we give each one a formal
+quality score, before any hardware Trojan exists, and does that score
+predict which assertions catch real Trojans later? That score is the
+**Assertion Quality Score (AQS)**, and the three metrics below are its parts.
 
 ---
 
-## The two formal engines behind everything: FPV and SPV
+## Where the assertions come from
 
-JasperGold offers two different formal analysis modes, and it is critical
-not to blur them together, because they answer fundamentally different
+The input is **68 security assertions for the Ibex RISC-V core**, covering
+all 9 security modules (PMP, CSRs, debug, exceptions and traps, control
+flow, mode transition, memory access, instruction execution, register
+update). They come from our earlier paper, *AutoTrans: AI-Assisted
+Automatic Translation of Security Assertions for RISC-V Processors*
+(BEC 2026). There, properties written for the NS31A processor (in SVA and in
+English) were translated to Ibex and proven with JasperGold: every assertion
+holds on the clean design and is non-vacuous (its trigger condition can
+actually occur).
+
+This paper does no translation. It takes those 68 assertions and asks how
+good they are.
+
+---
+
+## Background: assertions and bind files
+
+A **security assertion** is a short formal statement in SystemVerilog
+Assertions (SVA) saying "this bad thing must never happen". For example:
+"the machine status register must never be written while the processor is
+in user mode". Assertions are placed in a separate **bind file** that
+attaches them to the design without changing the design's source code.
+
+**Cadence JasperGold** then proves, for every possible input sequence,
+whether the assertion can be violated. There are two outcomes:
+
+- **Proven:** the bad thing can never happen.
+- **CEX (counterexample):** the tool found a concrete input sequence that
+  makes it happen, and shows that sequence.
+
+What a CEX means depends on what was being checked:
+
+| Where it is run | What a CEX means |
+|---|---|
+| Clean design (original Ibex) | The assertion is wrong. This was already ruled out in the BEC paper. |
+| Clean design + test signal (AER) | The assertion can be evaded: a gap in the assertion. |
+| Trojan-infected design | The assertion caught the Trojan: a good result. |
+
+All three metrics are computed on the **clean design**. Trojans are used
+only afterwards, to check whether the score was right.
+
+---
+
+## The two JasperGold engines: FPV and SPV
+
+The metrics rely on two different JasperGold analyses that answer different
 questions.
 
-### JasperGold Formal Property Verification (FPV) — a BEHAVIORAL check
+### Formal Property Verification (FPV) checks behavior
 
-**What it does:** Given a property (an assertion) and a design, FPV explores
-*every possible value* every input signal could take, on every clock cycle,
-forever, and mathematically proves whether any combination of those values
-could violate the property. It is exhaustive — not simulation, not random
-testing, an actual mathematical proof over the full state space.
+FPV explores every value every input can take, on every clock cycle, and
+proves whether any combination breaks a property. It is a mathematical
+proof over all behaviors, not simulation or random testing.
 
-**The question FPV answers:** *"Is there ANY sequence of input VALUES that
-breaks this property?"*
+> FPV asks: *"Is there any sequence of input values that breaks this?"*
 
-### JasperGold Security Path Verification (SPV) — a STRUCTURAL check
+### Security Path Verification (SPV) checks structure
 
-**What it does:** Given a target signal (e.g. a security-critical register),
-SPV traces every logical/electrical wire path that connects a primary input
-of the chip to that target signal — completely independent of what values
-those inputs take. It's asking a wiring-diagram question, not a
-"what-if-this-input-were-5" question.
+SPV traces the paths through the logic that connect the chip's inputs to a
+chosen signal. It does not try values. It looks at how the design is
+connected.
 
-**The question SPV answers:** *"Which inputs have ANY physical route
-(through gates, muxes, wires) to this signal at all?"*
+> SPV asks: *"Which inputs have any route through the logic to this signal?"*
 
-### Why the difference matters — a one-paragraph analogy
+### Why both are needed
 
-Think of a bank vault. FPV asks: "if someone tries every possible
-combination on the keypad, can they ever open the door?" SPV asks: "is
-there a maintenance duct, an air vent, or a second door anywhere in the
-building that physically connects to the vault, whether or not anyone has
-tried it yet?" A vault can pass the first test (no combination opens it)
-while still failing the second (there's an unguarded duct straight into the
-vault). Our two novel metrics, **AER** (built on FPV) and **SAPC** (built on
-SPV), are exactly this pair of checks, applied to security assertions.
+Think of a bank vault. FPV asks whether any code typed on the keypad opens
+the door. SPV asks whether there is an air duct or a side door anywhere in
+the building that leads into the vault. A vault can pass the first check
+and fail the second. **AER** is the keypad check (FPV) and **SAPC** is the
+building-plan check (SPV).
 
 ---
 
 ## Metric 1 — Security RTL Coverage (SRTLC)
 
-**Full name:** Security RTL Coverage
-**One-line intuition:** Of all the hardware logic that experts consider
-security-relevant, how much of it is actually being watched by at least one
-assertion?
+**One-line intuition:** of all the hardware logic that experts consider
+security-relevant, how much is watched by at least one assertion?
 
-**Step-by-step mechanics:**
-1. Start from NS31A (the reference/source processor) expert-written
-   security assertions. Every signal one of those assertions mentions is
-   declared "security-critical" — not by keyword search, not by guessing,
-   but because a domain expert wrote a formal security property about it.
-2. Map that list of security-critical signals onto their Ibex RTL
-   equivalents (some map cleanly, some don't — the ones that don't still
-   count in the denominator, see step 5).
-3. For each security-critical signal, find every RTL line (an `always`
-   block, an `assign` statement, a conditional) that implements it.
-4. Run JasperGold's Cone-of-Influence (COI) coverage report for the
-   module's actual assertion set — this tells you, for the assertions we
-   have, exactly which RTL lines they "see" (are logically connected to).
-5. SRTLC is the fraction of security-critical RTL lines that fall inside
-   the union of all assertion COIs.
+**Steps:**
+1. Take the NS31A expert security properties. Every signal they mention is
+   called **security-critical**, because a domain expert wrote a security
+   property about it. No keyword search or guessing is involved.
+2. Find the Ibex signals that correspond to them. Signals that could not be
+   mapped still count, so a missing mapping shows up as a coverage gap.
+3. For each security-critical signal, list the RTL lines that drive it
+   (`always` blocks, `assign` statements, conditions).
+4. Read JasperGold's **cone-of-influence (COI)** report for the assertion
+   set. The COI of an assertion is all the logic that can affect it, which
+   is the logic it "watches".
+5. SRTLC is the share of security-critical lines that lie inside at least
+   one assertion's COI.
 
 **Formula:**
 ```
-SRTLC_M = (security-critical RTL lines inside union of assertion COIs)
-          -----------------------------------------------------------  × 100%
-          (total security-critical RTL lines in module M)
+SRTLC_M = security-critical RTL lines inside the union of assertion COIs
+          ------------------------------------------------------------  × 100%
+          all security-critical RTL lines in module M
 ```
+For ranking a single assertion, **SRTLC_contrib** is the share of
+security-critical lines that only this assertion covers.
 
-**Worked example:** Suppose the CSR module has 40 RTL lines that implement
-NS31A-flagged security signals. The module's assertion set's combined COI
-touches 30 of those 40 lines. SRTLC = 30/40 × 100% = **75%**. This tells us
-25% of expert-identified security logic has *zero* assertion watching it at
-all — a concrete, actionable gap (we'd know exactly which 10 lines).
+**Worked example:** the CSR module has 40 lines that drive expert-flagged
+signals. The assertions' cones of influence cover 30 of them.
+SRTLC = 30/40 = **75%**. We also know exactly which 10 lines are watched by
+no assertion at all.
 
-**Why the denominator is NOT "all RTL lines":** if we divided by the whole
-module (e.g. 2,000 lines), 75% coverage of security logic could disappear
-into a misleadingly high "98% RTL coverage" number that says nothing about
-security. Restricting the denominator to expert-flagged lines keeps the
-metric meaningful.
+**Why the denominator is not "all RTL lines":** if we divided by the whole
+module (say 2,000 lines), the security gap would disappear into a
+misleading general coverage figure. Counting only expert-flagged lines keeps
+the number about security.
 
-**Source of the idea / how novel:** Cone-of-influence coverage itself is
-standard JasperGold output. Restricting the denominator to expert- or
-asset-identified signals (rather than all RTL) is closest in spirit to
-**LAsset** (DATE 2026, Farahmandi group, University of Florida) — they use
-an LLM to identify security "assets"; we use NS31A's existing expert
-assertions as the asset list instead. Not a brand-new idea, but a
-reasonable, well-motivated one — present it as such, not as groundbreaking.
+**Origin and novelty:** COI coverage is standard JasperGold output. Limiting
+it to expert- or asset-defined signals is close in spirit to security asset
+identification (LAsset, DATE 2026) and to information-flow coverage metrics
+(arXiv 2304.08263). It is a sound, well-motivated metric. Present it as an
+adaptation, not as a brand-new idea.
 
 ---
 
 ## Metric 2 — Assertion Evasion Resistance (AER)
 
-**Full name:** Assertion Evasion Resistance
-**One-line intuition:** If a hardware Trojan could flip any bit of this
-security-critical signal, at any time, in any pattern — could it get away
-with it without the assertion noticing?
+**One-line intuition:** if a security-critical signal could be flipped at
+any moment, in any pattern, could that cause a security violation without
+the assertion noticing?
 
-**Step-by-step mechanics ("the FPV oracle"):**
-1. Pick one security-critical signal, call it `real_signal`.
-2. Add one brand-new, completely free (unconstrained) input to the design —
-   call it `TROJ`. This variable is not driven by any real logic; JasperGold
-   is free to set it to anything, at any cycle.
-3. Wire it in: `modified_signal = real_signal XOR TROJ`. When `TROJ = 0`,
-   nothing changes. When `TROJ = 1` at some cycle, the signal's value flips
-   at that cycle — this is a stand-in for "a Trojan just tampered with this
-   signal."
-4. Feed `modified_signal` (not the original) into the rest of the design,
-   in place of `real_signal`.
-5. Run JasperGold FPV and ask: *does there exist ANY sequence of values for
-   `TROJ`, across ANY number of cycles, that causes the underlying security
-   property to be violated, while the security assertion we're testing
-   produces no failure (stays silent)?*
-6. Two outcomes:
-   - **Proven** → no such `TROJ` sequence exists → the assertion is
-     evasion-resistant → **AER = 1**.
-   - **CEX** → JasperGold hands you the *exact* sequence of `TROJ` values
-     that sneaks a violation past the assertion → **AER = 0**, and you now
-     have a concrete example of the exact behavioral gap.
+**Steps (the "test signal" setup):**
+1. Choose one security-critical signal, `real_signal`.
+2. Add one new input to the design: a **test signal**, `test_sig`. Nothing
+   drives it, so JasperGold may set it to any value on any clock cycle.
+3. Combine them: `modified_signal = real_signal XOR test_sig`. When
+   `test_sig = 0`, nothing changes. When `test_sig = 1`, the signal's value
+   is flipped on that cycle.
+4. Feed `modified_signal` into the rest of the design in place of
+   `real_signal`. The design itself is unchanged; the test signal sits in a
+   small wrapper.
+5. Ask JasperGold FPV: *is there any sequence of test-signal values that
+   breaks the intended security property while this assertion stays
+   silent?*
+6. Read the result:
+   - **Proven:** no such sequence exists, so the assertion cannot be evaded.
+     **AER = 1.**
+   - **CEX:** JasperGold returns the exact test-signal sequence that slips a
+     violation past the assertion. **AER = 0**, and that trace shows
+     precisely where the assertion is weak.
 
 **Formula:**
 ```
-AER_A = 1   if JasperGold FPV proves no TROJ assignment violates
-            the security property while assertion A stays silent
-AER_A = 0   if JasperGold finds a counterexample (exact bypass shown)
+AER_A = 1  if FPV proves no test-signal sequence breaks the security
+           property while assertion A stays silent
+AER_A = 0  if FPV returns a counterexample (an evasion trace)
 ```
 
-**Worked example:** Assertion `csr_no_write_in_user_mode` should catch any
-unauthorized write to the machine-status register. We wire a free `TROJ`
-variable into the register's write-enable signal and ask FPV: can `TROJ`
-ever cause an unauthorized write that this assertion fails to flag? If
-JasperGold returns Proven, AER = 1 for this assertion — it's a "yes" in a
-detection-matrix column. If JasperGold returns a counterexample showing
-`TROJ` forcing the write-enable high on cycle 4 while the assertion output
-stays low, AER = 0, and you know exactly which value pattern defeats it.
+**Worked example:** the assertion `csr_no_write_in_user_mode` should catch
+any write to the machine status register from user mode. We attach a test
+signal to the register's write-enable and ask FPV whether flipping it can
+cause such a write while the assertion stays quiet. If the answer is
+Proven, AER = 1. If FPV shows the test signal forcing write-enable high on
+cycle 4 while the assertion output stays low, AER = 0, and we know exactly
+which pattern evades it.
 
-**Why this matters beyond a single Trojan test:** this is not "did our 39
-specific Trojans get caught" — it is "is there ANY possible way, out of the
-literally infinite space of possible tampering patterns, to defeat this
-specific assertion." It is exhaustive by construction, not a sample.
+**Why this is stronger than testing a few cases:** the test signal can take
+every value on every cycle, so a Proven result covers every possible
+tampering pattern on that signal, not just the ones someone thought of.
 
-**Source of the idea:** directly extends the generic free-variable hardware
-Trojan model from **Chuah et al., "Formal Verification of Security
-Properties on RISC-V Processors"** — their model checks a property against
-one free-variable-modeled Trojan at module/PC level. AER's contribution is
-reframing the same mechanism as a **per-assertion score** you compute for
-every single assertion, independently, rather than a pass/fail for the
-whole module.
+**Origin and novelty:** the free-variable idea comes from the generic
+tampering model of Chuah et al., *Formal Verification of Security
+Properties on RISC-V Processors* (MBMV 2024) and their RISC-V Summit Europe 2025 work, which checks a whole
+module. AER turns the same mechanism into a **score for each individual
+assertion**.
 
-**Differentiation vs. a nearby alternative technique (mutation testing):**
-a natural alternative is "mutation testing" — inject a fixed, finite list
-of concrete faults (stuck-at-0, stuck-at-1, flipped comparison operators,
-etc.) and measure what fraction the assertions catch (a "kill rate"). Two
-2026 papers already do this for RTL assertion quality generally
-([arXiv 2606.21451](https://arxiv.org/pdf/2606.21451),
-[GateTruth](https://arxiv.org/html/2608.12635)). AER is a stronger
-guarantee than any of those: mutation testing samples a finite set of
-faults and reports what fraction survive; AER's free-variable FPV oracle
-proves, mathematically, that **no** value in the entire continuous space
-causes a bypass — a proof of absence, not an estimate from samples. This is
-a clean, honest way to differentiate AER from that line of work rather than
-pretending it doesn't exist.
+A nearby technique is **mutation testing**: insert a fixed list of concrete
+faults and measure what fraction the assertions catch (a "kill rate").
+Two 2026 papers already do this for RTL assertions
+([arXiv 2606.21451](https://arxiv.org/pdf/2606.21451) and
+[GateTruth, arXiv 2608.12635](https://arxiv.org/html/2608.12635)). AER
+differs because it is a **proof over all test-signal values**, not an
+estimate from a sample of faults. That is the honest way to set AER apart
+from that work.
 
 ---
 
 ## Metric 3 — Security Assertion Path Coverage (SAPC)
 
-**Full name:** Security Assertion Path Coverage
-**One-line intuition:** Even if an assertion perfectly catches every bad
-*value* we've thought to test (AER = 1), is there some *physical wire* into
-the security-critical signal that no assertion is even watching?
+**One-line intuition:** even if no tampered value gets past an assertion,
+is there a route into the security signal that no assertion watches at all?
 
-**Step-by-step mechanics ("the SPV oracle"):**
-1. Pick the same security-critical signal used for AER.
-2. Run JasperGold SPV, telling it: "trace every possible structural
-   (logical/electrical) path from any primary input of the chip to this
-   signal." SPV returns a complete list of such paths — this is a wiring
-   analysis, it does not involve trying any input values.
-3. For each path SPV found, check: does any assertion's cone-of-influence
-   (from the same COI data used for SRTLC) include this path? If yes, the
-   path is "monitored." If no assertion's COI touches it, the path is a
-   **structural blind spot** — a real, physically existing route into the
-   security signal that literally no property is watching.
-4. SAPC is the fraction of SPV-found paths that are monitored.
+**Steps:**
+1. Take the same security-critical signals.
+2. Run JasperGold SPV and ask for every structural path from a chip input to
+   each signal. This is a wiring analysis; no values are tried.
+3. For each path, check whether it lies inside some assertion's cone of
+   influence (the same COI data used for SRTLC). If yes, the path is
+   **monitored**. If no assertion's COI includes it, it is a **structural
+   blind spot**: a real route into the security signal that no assertion
+   watches.
+4. SAPC is the share of paths that are monitored.
 
 **Formula:**
 ```
-SAPC_M = (structural paths monitored by some assertion's COI)
-         ----------------------------------------------------  × 100%
-         (total structural paths found by SPV)
+SAPC_M = SPV paths into security signals inside some assertion's COI
+         -----------------------------------------------------------  × 100%
+         all SPV paths into security signals
 ```
+For ranking a single assertion, **SAPC_contrib** is the share of paths
+that this assertion's COI covers.
 
-**Worked example:** SPV finds that 8 distinct primary inputs have a
-structural path into the machine-status register. Checking assertion COIs,
-6 of those 8 paths are inside some assertion's cone of influence; 2 are not
-watched by anything. SAPC = 6/8 × 100% = **75%**. Crucially, this can be
-true *even if AER = 1 for every existing assertion* — because AER only
-tested the specific inputs its oracle model was wired to. If the oracle was
-never wired into those 2 unmonitored paths in the first place, AER would
-never have found the gap. SAPC finds it because it doesn't depend on the
-oracle wiring at all — it's a pure wiring-diagram trace.
+**Worked example:** SPV finds 8 inputs with a path into the machine status
+register. Six of those paths are inside some assertion's COI and 2 are not.
+SAPC = 6/8 = **75%**. This can happen even when every assertion has
+AER = 1, because AER only tampers with the signal the test signal is
+attached to. The 2 unwatched paths are invisible to AER. SAPC finds them
+because it looks at the wiring, not at values.
 
-**Why you need both AER and SAPC — this is the paper's central insight:**
-AER = "no known escape route exists, among the routes we tested." SAPC =
-"no unmonitored road exists, period — including roads we never thought to
-test." They are answering different questions (behavioral vs. structural),
-and a real assertion set can be strong on one and weak on the other.
+**Why AER and SAPC belong together:** AER says *"no tampered value gets
+past the assertions we checked"*. SAPC says *"no route into the signal is
+left unwatched"*. They catch different kinds of blind spot, and a real
+assertion set can be strong on one and weak on the other.
 
-**Source of the idea / honest novelty status:** JasperGold SPV path-tracing
-is a standard, existing Cadence product feature (in commercial use since
-2013). The specific idea of using SPV to score whether assertions cover
-structural paths is **not new** — a close prior paper, [Reusing
-Verification Assertions as Security Checkers for Hardware Trojan Detection
-(arXiv 2201.01130, evaluated on OpenTitan)](https://arxiv.org/abs/2201.01130),
-already defines "Security Coverage = reachable nodes / total nodes" using
-the same JasperGold SPV mechanism, to judge whether an assertion can detect
-a Trojan at a specific candidate payload location.
-
-**What actually is different about our version:** their metric is defined
-*per candidate Trojan payload location* — it presupposes you already have a
-specific Trojan site in mind. SAPC is defined *per expert-flagged security
-signal*, entirely independent of any specific Trojan or Trojan location, and
-it is one ingredient of a 5-term composite score (AQS) that we then validate
-empirically by correlating it with real detection counts across 9 modules
-and 39 Trojans. **The honest claim is: the composite ranker + its empirical
-validation is the novel part, not "we are first to use SPV for coverage."**
-This needs to be stated this way in the paper — claiming "first SPV-based
-metric" would be an easy, damaging thing for a reviewer who knows this 2022
-paper to catch.
+**Origin and novelty, stated honestly:** a 2022 paper,
+[Reusing Verification Assertions as Security Checkers for Hardware Trojan
+Detection (arXiv 2201.01130)](https://arxiv.org/abs/2201.01130), already
+uses JasperGold SPV to define "Security Coverage = reachable nodes / total
+nodes" for assertions. So we must **not** claim to be the first to use SPV
+for assertion coverage. The difference is that their measure is defined for
+a candidate Trojan location, while SAPC is defined for each expert-flagged
+security signal with no Trojan in mind, and is then combined with SRTLC and
+AER and checked against real Trojan detection.
 
 ---
 
-## Metric 4 — Trojan Category Formal Coverage (TCFC)
+## The Assertion Quality Score (AQS)
 
-**Full name:** Trojan Category Formal Coverage
-**One-line intuition:** Does this module's assertion set have an entire
-*category* of attack it can't catch at all — not just one specific Trojan,
-but a whole class of them?
-
-**Background — the 6 categories:** TrustHub (the standard hardware Trojan
-benchmark/taxonomy source) classifies attacks into 6 categories: Covert
-(hidden channel), Denial-of-Service, Integrity (data tampering), Leak
-(information disclosure), Privilege (unauthorized escalation), and
-Availability. Real Trojans are usually specific instances of one of these
-general categories.
-
-**Step-by-step mechanics:**
-1. For each of the 6 TrustHub categories, build one **universal formal
-   oracle** — a JasperGold FPV model that represents *any possible attack
-   fitting that category's general pattern*, not one of the 39 specific
-   benchmark Trojans. (Example: the "Leak" category oracle is a generic
-   model of "some internal secret value becomes observable on an output it
-   shouldn't reach," not any one specific leak Trojan's implementation.)
-2. Run FPV: does the module's existing assertion set catch every possible
-   attack fitting this category's oracle?
-3. Repeat for all 6 categories, independently.
-4. Count how many of the 6 categories come back Proven (fully covered).
+**One-line intuition:** combine the three metrics into one number per
+assertion, so the 68 assertions can be ranked from strongest to weakest.
 
 **Formula:**
 ```
-TCFC_M = (TrustHub categories where the category oracle is Proven) / 6 × 100%
+AQS = (SRTLC_contrib + AER + SAPC_contrib) / 3        (between 0 and 1)
 ```
+All three parts are fractions between 0 and 1 and get equal weight.
 
-**Worked example:** Testing the WB (write-back) module's assertions against
-all 6 category oracles: Integrity, Leak, and Privilege come back Proven
-(assertions catch any attack of these types). Covert, DoS, and Availability
-come back with counterexamples (some attack pattern of these types slips
-through). TCFC = 3/6 × 100% = **50%**. This tells the module's assertion
-author, in plain terms: "your assertions have a structural blind category —
-you have zero formal coverage against Covert-channel-style attacks, no
-matter which specific Covert Trojan someone eventually builds."
+**Worked example:** an assertion with SRTLC_contrib = 0.6, AER = 1 and
+SAPC_contrib = 0.5 gets AQS = (0.6 + 1 + 0.5) / 3 = **0.70**.
 
-**Why this differs from AER and SAPC:** AER and SAPC are both about a
-*single signal*, checked one at a time. TCFC operates at the *category
-level, across the whole module* — it's the only metric of the five that
-asks "which entire class of threat is unaddressed," rather than "which
-specific signal or path is unwatched."
-
-**Source of the idea / novelty:** the 6-category taxonomy comes from
-TrustHub, an established public resource. Building one *universal, formal
-(FPV-based)* oracle per category — as opposed to testing against specific
-Trojan instances — did not turn up a close prior match in this pass of
-searching. Of the five metrics, this currently looks like the most
-originally-constructed one, though it deserves a deeper, dedicated
-literature check before that claim is stated confidently in the paper.
+**How we test the score:** every assertion gets its AQS on the clean design.
+Then the same assertions are run against the 39-Trojan benchmark, and we
+count how many Trojans each one detects. We compute the **Pearson
+correlation** between AQS and the detection count. A strong positive
+correlation supports the central claim of the paper: *a formal score,
+computed before any Trojan existed, predicts which assertions catch real
+Trojans.*
 
 ---
 
-## Metric 5 — Assertion Quality Score (AQS) — the composite ranker
+## Comparison tables (not metrics)
 
-**Full name:** Assertion Quality Score
-**One-line intuition:** Combine everything above, plus how *dangerous* the
-underlying weakness would be if exploited, into one single number per
-assertion, so assertions can be ranked from strongest to weakest.
+Two tables sit beside the AQS ranking to describe each assertion. They do
+not affect the score.
 
-**Step-by-step mechanics:**
-1. Take the four formal metrics above, each already expressed as a fraction
-   between 0 and 1 for a given assertion: AER (0 or 1), SRTLC_contrib (this
-   assertion's unique share of the module's SRTLC coverage), SAPC_contrib
-   (this assertion's share of monitored structural paths), TCFC_contrib
-   (fraction of the 6 categories this assertion contributes to).
-2. Separately, map the assertion's module to a CWE (Common Weakness
-   Enumeration) category — a standard taxonomy for classifying the *type*
-   of security weakness (e.g. "CWE-1220: Insufficient Granularity of Access
-   Control" for PMP). Each CWE has a published CVSS (Common Vulnerability
-   Scoring System) severity score, 0–10. Normalize it: `CVSS_norm = CVSS/10`.
-3. Combine all five terms with equal weights (0.20 each, chosen as the
-   simplest defensible default — summing to 1.0):
+### Table A — assertion to weakness (CWE / CVSS)
 
-**Formula:**
-```
-AQS = 0.20 × CVSS_norm
-    + 0.20 × AER
-    + 0.20 × SRTLC_contrib
-    + 0.20 × SAPC_contrib
-    + 0.20 × TCFC_contrib
-```
+Each assertion is mapped to the CWE weakness it guards against, with that
+weakness's CVSS severity. Example: PMP assertions map to CWE-1220
+(insufficient granularity of access control). This shows *what kind of
+weakness* each assertion protects, and how serious that weakness is.
 
-**Worked example:** An assertion in the PMP module (CWE-1220, CVSS ≈ 8.6,
-so CVSS_norm = 0.86) that is evasion-resistant (AER = 1), contributes 0.6 of
-its module's unique SRTLC coverage, 0.5 of its SAPC-monitored paths, and 0.4
-of the 6 TCFC categories:
-```
-AQS = 0.20(0.86) + 0.20(1.0) + 0.20(0.6) + 0.20(0.5) + 0.20(0.4)
-    = 0.172 + 0.200 + 0.120 + 0.100 + 0.080
-    = 0.672
-```
-This assertion would rank at 0.672 out of a possible 1.0, and can be
-compared directly against every other assertion in every other module —
-producing a single ranked table across the whole processor.
+Cite **NIST CSWP 45**, *Metrics and Methodology for Hardware Security
+Constructs* (June 2025), which defines hardware-specific *threat* and
+*sensitivity* measures from CWE and attack-pattern (CAPEC) mappings, to
+ground this table in hardware-security literature.
 
-**Then — the step that actually proves the ranker means something:** once
-every assertion has an AQS score (computed entirely on clean RTL, with no
-Trojans involved), the same assertions are run against the 39-Trojan
-benchmark (Trojan Evaluation Stage). For each assertion, count how many of
-the 39 Trojans it actually detects. Then compute the **Pearson correlation
-coefficient** between AQS score and detection count, across all assertions.
-A strong positive correlation is the scientific claim of the whole paper:
-*"a purely formal score, computed before any Trojan ever existed, predicts
-which assertions will catch real Trojans."* This is the part of the paper
-that should be led with — it's a stronger and more defensible claim than
-any single one of the five ingredient metrics on its own.
+### Table B — assertion to Trojan category
 
-**Source of the severity term / citations to use:**
-- Using CWE-mapped CVSS severity to weight findings is standard practice in
-  software security (**CWSS**, the Common Weakness Scoring System, does the
-  same combination for software vulnerabilities).
-- For a hardware-native alternative/complement, cite **NIST CSWP 45,
-  "Metrics and Methodology for Hardware Security Constructs"** (June 2025):
-  it defines a *threat* metric (how many hardware weaknesses one CAPEC
-  attack pattern can exploit) and a *sensitivity* metric (how many attack
-  patterns can exploit one CWE weakness), built entirely from CWE/CAPEC
-  mapping rather than borrowed CVSS. This is a good citation to ground the
-  severity-weighting idea in hardware-specific literature. Swapping
-  CVSS_norm for a CSWP-45-style threat×sensitivity term is a reasonable
-  *future* refinement — not necessary for this submission, but worth a
-  sentence in the limitations/future-work section.
+Each assertion is mapped to the TrustHub Trojan categories it is meant to
+address: Availability, Covert, Denial of Service, Integrity, Leak and
+Privilege. After the Trojan evaluation, the table also shows which
+categories each assertion *actually* detected.
 
 ---
 
-## Novelty verdict — one table, for the advisor conversation
+## The full flow in five stages
 
-| Metric | Status | What to say | Key citation to handle carefully |
+| # | Stage | What happens | New JasperGold runs |
 |---|---|---|---|
-| SRTLC | Reasonable, not brand-new | "Adapts asset-coverage-style thinking to expert-defined signals" | LAsset (DATE 2026) |
-| AER | Solid, well-differentiated | "Formally exhaustive per-assertion extension of Chuah's free-variable model; strictly stronger than mutation-testing kill rates" | Chuah (RISC-V security props); 2606.21451, GateTruth (contrast) |
-| SAPC | Needs reframed novelty claim | "Do not say 'first SPV-based metric' — say the composite+validation is novel, not the SPV mechanism itself" | **arXiv 2201.01130 (OpenTitan) — must cite and differentiate** |
-| TCFC | Most originally-constructed, unverified | "Looks original from this pass; deserves a dedicated deeper check before claiming novelty confidently" | none found yet |
-| AQS + Pearson validation | Strongest overall claim | "Lead the abstract with this: a formal score, computed with zero Trojans involved, empirically predicts real detection capability" | CWSS (software analog); NIST CSWP 45 (hardware-native option) |
+| 1 | Assertion Validation (AVS) | Done in the BEC 2026 paper: 68 assertions proven and non-vacuous | 0 |
+| 2 | Assertion Quality Ranking (AQRS) | SRTLC, AER and SAPC on the clean design, then AQS and the two comparison tables | 20 |
+| 3 | Trojan Evaluation (TES) | Run the assertions on 39 trojaned designs, then correlate AQS with detection | 39 |
+| 4 | Assertion Refinement (ARS) | Add template assertions for the gaps found in stage 2 (Python, no LLM) | 0 |
+| 5 | Refined Assertion Validation (RAVS) | Re-run on the same 39 Trojans and measure the improvement | 39 |
 
 ---
 
-## What this document is NOT
+## Novelty summary for discussion
 
-This was a lightweight-to-moderate literature pass (targeted web searches,
-not the installed 13-agent deep-research tool, and not a systematic
-review). Treat every "no prior work found" statement above as "nothing
-turned up in this pass," not "confirmed absent from the literature." Before
-final submission, at minimum SAPC and TCFC deserve one more focused check
-each.
+| Item | Status | What to say |
+|---|---|---|
+| SRTLC | Sound, not brand-new | "Coverage of expert-defined security logic, adapted from asset and information-flow coverage." |
+| AER | Strong | "A per-assertion formal proof of evasion resistance; a proof over all test-signal values, not a mutation kill rate." |
+| SAPC | Claim must be reworded | "Not the first SPV metric (arXiv 2201.01130). New: defined per security signal, independent of any Trojan, and combined with AER and SRTLC." |
+| AQS + correlation | Strongest claim | "A formal score computed before any Trojan exists predicts real Trojan detection." Lead the abstract with this. |
+| CWE and Trojan-category tables | Descriptive | Context for the reader; not claimed as novel. |
+
+The red-team, blue-team and literature reports in `docs/research/` check
+these verdicts in more depth.

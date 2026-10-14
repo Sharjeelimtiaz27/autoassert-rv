@@ -1,6 +1,5 @@
 .claude/
 CLAUDE.md
-pipeline/signals/
 **/__pycache__/
 *.log
 *.jdb
