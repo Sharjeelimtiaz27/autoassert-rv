@@ -10,8 +10,9 @@
 > Target venue: IEEE European Test Symposium (ETS) 2027.
 
 **Visual guide to the metrics and experiments:**
-[sharjeelimtiaz27.github.io/autoassert-rv](https://sharjeelimtiaz27.github.io/autoassert-rv/)
-(source: [docs/index.html](docs/index.html))
+[open as web page](https://htmlpreview.github.io/?https://github.com/Sharjeelimtiaz27/autoassert-rv/blob/main/docs/index.html)
+· [open as PDF](docs/Assertion_Quality_Ranker.pdf)
+· [all documents](docs/)
 
 ---
 
